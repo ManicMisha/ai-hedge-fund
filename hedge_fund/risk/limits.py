@@ -35,6 +35,27 @@ class MarketFilter(BaseModel):
                                   description="max gross exposure while the benchmark is below its average")
 
 
+class PumpGuard(BaseModel):
+    """Stand aside from a ticker that just spiked on abnormal volume.
+
+    A pump looks the same on every chart: a sudden jump in price together
+    with a surge in trading volume. A ticker is flagged when, on any of the
+    last `cooldown_days` sessions, it rose at least `jump_1d` in a day or
+    `jump_5d` over five days AND traded at least `volume_multiple` times its
+    average volume of the `volume_window` sessions before. While flagged its
+    target weight is zero: the fund neither buys into the spike nor keeps
+    holding through the likely dump. It only ever removes exposure.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    jump_1d: float = Field(default=0.25, gt=0, le=10, description="one-day rise that counts as a spike (0.25 = +25%)")
+    jump_5d: float = Field(default=0.40, gt=0, le=10, description="five-day rise that counts as a spike")
+    volume_multiple: float = Field(default=4.0, ge=1, le=100, description="volume vs its recent average")
+    volume_window: int = Field(default=50, ge=10, le=250, description="sessions in the volume average")
+    cooldown_days: int = Field(default=10, ge=1, le=60, description="sessions a flag lasts after the last spike")
+
+
 class RiskLimits(BaseModel):
     """The fund's hard limits, set in its FundSpec."""
 
@@ -49,6 +70,9 @@ class RiskLimits(BaseModel):
     market_filter: MarketFilter | None = Field(
         default=None, description="optional: lower the gross cap while the benchmark trends down"
     )
+    pump_guard: PumpGuard | None = Field(
+        default=None, description="optional: stand aside from tickers spiking on abnormal volume"
+    )
 
     @model_serializer(mode="wrap")
     def _omit_absent_filter(self, handler):
@@ -56,15 +80,17 @@ class RiskLimits(BaseModel):
         # serialize exactly as it did before the option existed, or every
         # older ledger would fail verification.
         data = handler(self)
-        if self.market_filter is None and isinstance(data, dict):
-            data.pop("market_filter", None)
+        if isinstance(data, dict):
+            for optional in ("market_filter", "pump_guard"):
+                if getattr(self, optional) is None:
+                    data.pop(optional, None)
         return data
 
 
 class ClampEvent(BaseModel):
     """One limit firing — recorded so every clamp is explainable."""
 
-    limit: Literal["max_position_pct", "max_gross_exposure", "market_filter"]
+    limit: Literal["max_position_pct", "max_gross_exposure", "market_filter", "pump_guard"]
     ticker: str | None = None  # None for the portfolio-level gross clamp
     before: float
     after: float

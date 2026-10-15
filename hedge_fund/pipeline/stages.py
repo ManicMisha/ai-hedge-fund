@@ -29,7 +29,7 @@ from hedge_fund.pipeline.models import (
 )
 from hedge_fund.portfolio.construction import blend_signals, WEIGHT_TOLERANCE
 from hedge_fund.portfolio.validation import validate_targets
-from hedge_fund.risk.limits import apply_limits
+from hedge_fund.risk.limits import apply_limits, ClampEvent
 from hedge_fund.signals import get_investment_approach
 
 # How far back to look for the most recent close: covers weekends, holiday
@@ -92,11 +92,15 @@ def assess_fund(
         # The gross cut that fired is the market filter's, not the mandate's ceiling.
         risk.clamps = [c.model_copy(update={"limit": "market_filter"}) if c.limit == "max_gross_exposure" else c
                        for c in risk.clamps]
+    guarded = (_stand_aside_from_pumps(risk.weights, risk.clamps, limits.pump_guard, as_of, data_client)
+               if limits.pump_guard is not None else set())
     if risk.scale_factor is not None:
         multipliers = dict.fromkeys(netted, risk.scale_factor)
     else:
         # Exactly offset contributions stay visible even though no net trade remains.
         multipliers = {ticker: risk.weights[ticker] / weight if weight != 0 else 1.0 for ticker, weight in netted.items()}
+    for ticker in guarded:
+        multipliers[ticker] = 0.0
     for record in strategy_records:
         record.final_contribution = {
             ticker: record.slice * weight * multipliers[ticker]
@@ -181,6 +185,26 @@ def execute_decision(
 # ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
+
+def _stand_aside_from_pumps(weights, clamps, rule, as_of: str, data_client: DataClient) -> set[str]:
+    """Zero every held or targeted ticker that just spiked on abnormal volume,
+    recording a "pump_guard" clamp for each. Mutates *weights* and *clamps*;
+    returns the tickers it zeroed. Only ever removes exposure."""
+    from hedge_fund.risk.pump import detect, lookback
+    from hedge_fund.signals.price import bars_through
+
+    zeroed: set[str] = set()
+    for ticker in sorted(weights):
+        weight = weights[ticker]
+        if weight == 0:
+            continue
+        if detect(bars_through(data_client, ticker, as_of, lookback(rule)), rule) is None:
+            continue
+        clamps.append(ClampEvent(limit="pump_guard", ticker=ticker, before=weight, after=0.0))
+        weights[ticker] = 0.0
+        zeroed.add(ticker)
+    return zeroed
+
 
 def _market_risk_off(benchmark: str, as_of: str, rule, data_client: DataClient) -> bool:
     """True when the benchmark's close on *as_of* is below its moving average.

@@ -7,6 +7,9 @@
 # market filter cuts the whole fund to at most 30% invested, because
 # momentum's worst crashes came right after market bottoms (2009: over -70%
 # for the long/short version). Long-only, so it never bets against stocks.
+# The pump guard stands aside from any stock that jumps 25% in a day or 40%
+# in a week on 4x its normal volume, for 10 trading days: that pattern is how
+# pump-and-dumps look, and buying it usually means buying from the pumpers.
 #
 # Suggested stocks to watch (12 across sectors):
 #   AAPL, MSFT, NVDA, AMZN, GOOGL, META, JPM, V, LLY, XOM, COST, HD
@@ -28,6 +31,7 @@ risk:
   max_position_pct: 0.12
   max_gross_exposure: 1.0
   market_filter: {ma_days: 200, risk_off_gross: 0.3}
+  pump_guard: {jump_1d: 0.25, jump_5d: 0.40, volume_multiple: 4.0, cooldown_days: 10}
 capital: 100000
 rebalance: monthly
 benchmark: SPY

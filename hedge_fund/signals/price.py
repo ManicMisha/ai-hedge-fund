@@ -29,7 +29,7 @@ from hedge_fund.data.sessions import completed_through
 from hedge_fund.models import Signal
 from hedge_fund.signals.base import QuantModel
 
-# Per data client: ticker -> (start, end, [(day, close), ...]). One fetch per
+# Per data client: ticker -> (start, end, [(day, close, volume), ...]). One fetch per
 # ticker covers every later assessment date in a backtest; the slice below
 # keeps each assessment point-in-time.
 _HISTORY: WeakKeyDictionary = WeakKeyDictionary()
@@ -38,6 +38,11 @@ _TRADING_TO_CALENDAR = 1.5  # calendar days per trading day, with holiday slack
 
 def closes_through(data_client: DataClient, ticker: str, as_of: str, trading_days: int) -> list[float]:
     """Up to *trading_days* + 1 daily closes ending on or before *as_of*, oldest first."""
+    return [close for close, _ in bars_through(data_client, ticker, as_of, trading_days)]
+
+
+def bars_through(data_client: DataClient, ticker: str, as_of: str, trading_days: int) -> list[tuple[float, int]]:
+    """Up to *trading_days* + 1 daily (close, volume) pairs ending on or before *as_of*."""
     start = (_date.fromisoformat(as_of) - timedelta(days=int(trading_days * _TRADING_TO_CALENDAR) + 10)).isoformat()
     end = max(as_of, completed_through())
     try:
@@ -47,11 +52,11 @@ def closes_through(data_client: DataClient, ticker: str, as_of: str, trading_day
     cached = per_client.get(ticker)
     if cached is None or cached[0] > start or cached[1] < as_of:
         bars = data_client.get_prices(ticker, start, end)
-        series = sorted((b.time[:10], b.close) for b in bars)
+        series = sorted((b.time[:10], b.close, b.volume) for b in bars)
         cached = (start, end, series)
         per_client[ticker] = cached
-    closes = [close for day, close in cached[2] if day <= as_of]
-    return closes[-(trading_days + 1):]
+    rows = [(close, volume) for day, close, volume in cached[2] if day <= as_of]
+    return rows[-(trading_days + 1):]
 
 
 class _PriceModel(QuantModel):

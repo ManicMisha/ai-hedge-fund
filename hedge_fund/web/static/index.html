@@ -413,6 +413,8 @@ function nextPanel(f) {
   }).join("") || `<div class="muted">Stay in cash.</div>`;
   const trims = (plan.clamps || []).map((c) => c.limit === "market_filter"
     ? `<div class="trim">Market shield is up: the S&amp;P 500 is below its long-term average, so only ${pct(c.after, 0)} is invested (wanted ${pct(c.before, 0)}).</div>`
+    : c.limit === "pump_guard"
+    ? `<div class="trim" style="color:var(--dmg)">Pump alarm: ${esc(c.ticker)} jumped on unusually heavy trading. The fund stays out of it until things settle (wanted ${pct(c.before, 0)}).</div>`
     : `<div class="trim">Risk officer trimmed ${esc(c.ticker || "the whole book")}: ${pct(c.before, 0)} → ${pct(c.after, 0)}</div>`).join("");
   return `<header><h3>Next move</h3><span class="label">${plan.done ? "last plan, done" : "waiting to execute"}</span></header>
     <p class="muted" style="margin:0 0 12px;font-size:12px">${plan.done ? `The plan from ${day(plan.as_of)}, already traded.` : `Target share of the fund for each stock, decided ${day(plan.as_of)}. It trades at the next day's closing price.`} Right of the line is owning, left is betting against.</p>
@@ -426,6 +428,8 @@ function logPanel(f) {
       case "trade": return [e.side, e.side === "buy" ? "Buy" : "Sell", `${e.side === "buy" ? "Bought" : "Sold"} ${e.quantity.toLocaleString()} ${esc(e.ticker)} @ ${money(e.price, true)} · ${money(e.value)}`];
       case "clamp": return e.limit === "market_filter"
         ? ["risk", "Shield", `Market below its long-term average: cut money invested from ${pct(e.before, 0)} to ${pct(e.after, 0)}`]
+        : e.limit === "pump_guard"
+        ? ["halt", "Pump", `Pump alarm on ${esc(e.ticker)}: sudden spike on heavy trading. Standing aside (wanted ${pct(e.before, 0)})`]
         : ["risk", "Risk", `Capped ${esc(e.ticker || "total exposure")} from ${pct(e.before, 0)} to ${pct(e.after, 0)}`];
       case "decision": return ["plan", "Plan", `New plan: ${Object.entries(e.targets).map(([t, w]) => `${esc(t)} ${pct(w, 0)}`).join(", ") || "all cash"}`];
       case "halt": return ["halt", "Frozen", esc(e.detail || "halted")];

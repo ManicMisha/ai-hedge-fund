@@ -35,6 +35,7 @@ risk:
   max_position_pct: 0.15
   max_gross_exposure: 1.0
   market_filter: {ma_days: 200, risk_off_gross: 0.3}
+  pump_guard: {jump_1d: 0.25, jump_5d: 0.40, volume_multiple: 4.0, cooldown_days: 10}
 capital: 100000
 rebalance: monthly
 benchmark: SPY

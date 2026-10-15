@@ -108,6 +108,13 @@ class FundSpec(BaseModel):
     def _uppercase_benchmark(cls, ticker: str) -> str:
         return ticker.upper()
 
+    @model_validator(mode="after")
+    def _pump_guard_needs_one_sided_books(self) -> "FundSpec":
+        if self.risk.pump_guard is not None and any(s.blend.mode == "dollar_neutral" for s in self.strategies):
+            raise ValueError("risk.pump_guard can't be combined with dollar_neutral strategies: "
+                             "standing aside from one leg would unbalance the hedge")
+        return self
+
     @field_validator("strategies")
     @classmethod
     def _unique_strategy_names(cls, strategies: list[StrategySpec]) -> list[StrategySpec]:
