@@ -52,7 +52,9 @@ from pathlib import Path
 from rich.console import Console
 
 from hedge_fund.backtesting import backtest_fund
-from hedge_fund.data import CachedDataClient, FDClient
+# FDClient / CachedDataClient open the active market-data source: Financial
+# Datasets when its key is set, otherwise free Yahoo prices (data/source.py).
+from hedge_fund.data.source import open_client as FDClient, with_cache as CachedDataClient
 from hedge_fund.data.sessions import completed_through
 from hedge_fund.fund import Fund, load_spec, normalize_universe
 from hedge_fund.paper import (

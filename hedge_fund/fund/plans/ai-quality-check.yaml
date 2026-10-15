@@ -1,0 +1,40 @@
+# AI Quality Check — Momentum Leaders plus two AI analysts on a smaller slice.
+#
+# 70% of the money follows the price signals from Momentum Leaders. 30%
+# follows two AI analysts reading company financials for business quality.
+# This is the one plan where the AI earns its seat or doesn't: compare it
+# against Momentum Leaders on the same stocks.
+#
+# Needs: a Financial Datasets key (the AI reads company financials, which
+# the free Yahoo source doesn't have; without it the AI slice sits in cash)
+# and an AI key. Pick a cheap model such as DeepSeek Flash: the analysts only
+# think once a month, so with 8 stocks it costs cents a month in AI fees.
+#
+# Suggested stocks to watch (8, to keep data costs down):
+#   AAPL, MSFT, NVDA, GOOGL, JPM, LLY, COST, XOM
+schema_version: 2
+name: ai-quality-check
+strategies:
+  - name: price-signals
+    display_name: Price Signals
+    weight: 0.7
+    blend: {mode: long_only}
+    models:
+      - name: momentum
+        weight: 2
+      - name: trend
+      - name: low_vol
+  - name: ai-quality
+    display_name: AI Quality
+    weight: 0.3
+    blend: {mode: long_only}
+    models:
+      - name: buffett
+      - name: munger
+risk:
+  max_position_pct: 0.15
+  max_gross_exposure: 1.0
+  market_filter: {ma_days: 200, risk_off_gross: 0.3}
+capital: 100000
+rebalance: monthly
+benchmark: SPY

@@ -32,12 +32,42 @@ ENV_PATH = USER_DIR / ".env"
 EXAMPLE_MANDATE = Path(__file__).resolve().parent / "fund" / "example.yaml"
 
 
+# Ready-made fund plans that ship with the package (fund/plans/). Each is
+# copied into mandates/ once; a plan you delete stays deleted, because the
+# names already offered are remembered in mandates/.seeded.
+BUNDLED_PLANS_DIR = Path(__file__).resolve().parent / "fund" / "plans"
+SEEDED_FILE = ".seeded"
+
+
 def ensure_mandates_dir() -> Path:
-    """Create the mandates dir on first use, seeded with the example."""
+    """Create the mandates dir on first use, seeded with the example, and
+    offer any bundled fund plan not offered before."""
     if not MANDATES_DIR.exists():
         MANDATES_DIR.mkdir(parents=True)
         shutil.copy(EXAMPLE_MANDATE, MANDATES_DIR / "example.yaml")
+    seed_plans(MANDATES_DIR)
     return MANDATES_DIR
+
+
+def seed_plans(directory: Path, bundled: Path = BUNDLED_PLANS_DIR) -> list[str]:
+    """Copy each bundled plan into *directory* once. Never overwrites a file
+    and never re-adds one the user removed. Returns the names copied."""
+    marker = Path(directory) / SEEDED_FILE
+    try:
+        offered = set(marker.read_text().split()) if marker.exists() else set()
+    except OSError:
+        offered = set()
+    copied: list[str] = []
+    new_names = [p for p in sorted(Path(bundled).glob("*.yaml")) if p.name not in offered]
+    for plan in new_names:
+        target = Path(directory) / plan.name
+        if not target.exists():
+            shutil.copy(plan, target)
+            copied.append(plan.name)
+        offered.add(plan.name)
+    if new_names:
+        write_atomic(marker, "\n".join(sorted(offered)) + "\n")
+    return copied
 
 
 def write_atomic(path: Path, text: str) -> None:

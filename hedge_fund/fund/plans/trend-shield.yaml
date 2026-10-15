@@ -1,0 +1,29 @@
+# Trend Shield — the smaller-drops fund. No AI, no paid data.
+#
+# Holds a spread of asset classes and keeps each one only while it trades
+# above its 200-day average; anything below its average sits in cash. This
+# is Meb Faber's 10-month timing rule (2007, updated 2018): on US stocks it
+# cut the worst fall from about 51% to 17% with similar long-run returns,
+# and it lagged the S&P 500 in most years of the 2010s bull market. Expect
+# that trade: calmer, not faster.
+#
+# Suggested stocks to watch (5 asset classes, one slot each):
+#   SPY, EFA, IEF, VNQ, GLD
+#   (US stocks, international stocks, US bonds, real estate, gold)
+#
+# Cost: $0 AI. Works on free Yahoo prices.
+schema_version: 2
+name: trend-shield
+strategies:
+  - name: trend-rotation
+    display_name: Trend Rotation
+    blend: {mode: long_only, method: slot_weighted}
+    models:
+      - name: trend
+        params: {ma_days: 200}
+risk:
+  max_position_pct: 0.25
+  max_gross_exposure: 1.0
+capital: 100000
+rebalance: monthly
+benchmark: SPY

@@ -39,6 +39,7 @@ def validate_targets(spec: FundSpec, strategies: list[StrategyRecord], final_wei
             strategy.blend.gross_target,
             mode=strategy.blend.mode,
             investment_approaches={m.name: get_investment_approach(m.name) for m in strategy.models},
+            method=strategy.blend.method,
         )
         if record.eligible_scores.keys() != evidence.eligible_scores.keys():
             raise ValueError(f"{scope}: eligible score tickers do not match analyst signals")

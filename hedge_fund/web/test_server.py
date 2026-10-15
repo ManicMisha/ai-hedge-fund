@@ -194,11 +194,26 @@ def test_halt_blocks_runs_until_resumed(http, dash, clock):
     assert dash.runs.wait("alpha")["state"] == "done"
 
 
-def test_run_needs_the_keys(http, dash, monkeypatch):
+def test_run_needs_only_the_keys_the_fund_uses(http, dash, monkeypatch, clock):
     deploy("alpha", FundSpec(**SPEC), ["AAPL"], root=dash.paper_root)
+    # Financial Datasets chosen explicitly but no key: refuse by name.
+    monkeypatch.setenv("DATA_SOURCE", "financialdatasets")
     monkeypatch.delenv("FINANCIAL_DATASETS_API_KEY")
     status, err = http("POST", "/api/funds/alpha/run", {"mode": "run"})
     assert status == 428 and "Financial Datasets" in err["error"]
+    # No key and no choice: free Yahoo prices, nothing to ask for.
+    monkeypatch.delenv("DATA_SOURCE")
+    assert dash.state()["data_source"] == "yahoo" and dash.state()["data_ready"] is True
+    # A maths-only fund never needs an AI key...
+    monkeypatch.delenv("ANTHROPIC_API_KEY")
+    clock("2024-06-04")
+    assert http("POST", "/api/funds/alpha/run", {"mode": "run"})[0] == 200
+    assert dash.runs.wait("alpha")["state"] == "done"
+    # ...but a fund with an AI analyst does.
+    ai = {**SPEC, "strategies": [{"name": "s", "models": [{"name": "buffett"}], "blend": {"mode": "long_only"}}]}
+    deploy("brains", FundSpec(**ai), ["AAPL"], root=dash.paper_root)
+    status, err = http("POST", "/api/funds/brains/run", {"mode": "run"})
+    assert status == 428 and "Anthropic" in err["error"]
 
 
 # ---------------------------------------------------------------------------

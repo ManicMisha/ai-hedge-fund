@@ -11,6 +11,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from hedge_fund.data.source import data_source, LABELS as SOURCE_LABELS, needs_data_key
 from hedge_fund.fund import FundSpec, load_spec
 from hedge_fund.llm import DEFAULT_MODEL, load_api_models, PROVIDER_ENV_VARS, provider_for
 from hedge_fund.models import Signal
@@ -32,6 +33,9 @@ ANALYSTS = {
     "lynch": ("Peter Lynch", "Growth you can understand"),
     "druckenmiller": ("Stanley Druckenmiller", "Macro and momentum"),
     "pead": ("Earnings Drift", "Maths only: drift after earnings surprises"),
+    "trend": ("Trend Scout", "Maths only: above its 200-day average or out"),
+    "momentum": ("Momentum Runner", "Maths only: last year's winners keep running"),
+    "low_vol": ("Steady Hand", "Maths only: calmer stocks, smaller drops"),
 }
 
 _LOG_LIMIT = 200
@@ -44,6 +48,9 @@ _LOG_LIMIT = 200
 def app_state(paper_root: Path, mandates_root: Path) -> dict:
     return {
         "data_key_set": bool(os.environ.get(DATA_KEY)),
+        "data_source": data_source(),
+        "data_label": SOURCE_LABELS[data_source()],
+        "data_ready": not needs_data_key(),
         "model": current_model(),
         "models": [_model_view(mid, label, provider) for label, mid, provider in load_api_models()],
         "mandates": mandates(mandates_root),
@@ -96,6 +103,7 @@ def spec_view(spec: FundSpec) -> dict:
             {
                 "name": s.name,
                 "mode": s.blend.mode,
+                "method": s.blend.method,
                 "weight": s.weight,
                 "analysts": [analyst_view(m.name) for m in s.models],
             }

@@ -67,6 +67,22 @@ Opens an arcade-style dashboard at http://localhost:8000 for your paper funds: e
 
 It serves this computer only (127.0.0.1) and needs no extra install. `--port 8080` to move it, `--no-browser` to skip opening a tab. Backtesting is still in the terminal app.
 
+### Free data
+
+Without a Financial Datasets key the app uses free daily prices from Yahoo Finance. That is all the price-based analysts below need. The AI investor personas read company financials, which Yahoo's free feed doesn't have, so on Yahoo they abstain; add a Financial Datasets key to bring them in. Force a source with `DATA_SOURCE=yahoo` or `DATA_SOURCE=financialdatasets` in `~/.hedge-fund/.env`. Yahoo prices are raw closes (dividends not included, for the fund and the benchmark alike) and come from an unofficial endpoint that can rate-limit.
+
+### Fund plans
+
+Three ready-made plans are copied into `~/.hedge-fund/mandates/` the first time you run this version. Run them side by side as separate paper funds and let the results decide:
+
+| Plan | Analysts | Needs | Aims for |
+| --- | --- | --- | --- |
+| `trend-shield` | Trend (200-day average) on 5 asset classes: SPY, EFA, IEF, VNQ, GLD | nothing | Smaller drops; lags in strong bull markets |
+| `momentum-leaders` | Momentum ×2, Trend, Low volatility on 12 large caps, plus a market filter that cuts to 30% invested when SPY is below its 200-day average | nothing | Beat SPY with smaller drops |
+| `ai-quality-check` | Momentum Leaders on 70% of the money, Buffett and Munger on 30% | Financial Datasets key + an AI key | Tests whether the AI adds anything |
+
+New building blocks: price-only analysts `trend`, `momentum` and `low_vol` (no AI, no fundamentals); `blend: {method: slot_weighted}`, which gives each ticker an equal slot and leaves unused slots in cash; and `risk.market_filter: {ma_days, risk_off_gross}`. None of these patterns is a promise: published market patterns have lost about a third of their strength after publication on average, and momentum has crashed hard after market bottoms. Backtest first with `aihf backtest ~/.hedge-fund/mandates/momentum-leaders.yaml --universe AAPL,MSFT,...`.
+
 
 
 ## Development

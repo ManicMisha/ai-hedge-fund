@@ -291,15 +291,17 @@ function topbar(right = "") {
     <div class="brand"><img class="logo" alt="" src="${sprite("arcade-logo", "ai")}">
       <div><h1>AI HEDGE <span>FUND</span></h1><div class="sub">Paper trading · pretend money only</div></div></div>
     <div class="chips">${right}
-      ${m ? `<span class="pill ${m.key_set ? "" : "warn"}" title="The AI model your analysts think with">AI: ${esc(m.label)}</span>` : ""}
+      ${S.app ? `<span class="pill ${S.app.data_source === "yahoo" ? "" : "up"}" title="${esc(S.app.data_label)}">Data: ${S.app.data_source === "yahoo" ? "Yahoo · free" : "Financial Datasets"}</span>` : ""}
+      ${m ? `<span class="pill ${m.key_set ? "" : "warn"}" title="The AI model your AI analysts think with">AI: ${esc(m.label)}${m.key_set ? "" : " · no key"}</span>` : ""}
       <button class="btn small ghost" data-act="settings">Keys &amp; model</button></div></div>`;
 }
 
 function coinBanner() {
   const a = S.app; if (!a) return "";
   const missing = [];
-  if (!a.data_key_set) missing.push("Financial Datasets key (stock data)");
-  if (a.model.key_env && !a.model.key_set) missing.push(`${a.model.provider} key (for ${a.model.label})`);
+  const usesAI = S.fund ? S.fund.spec.strategies.some((s) => s.analysts.some((x) => x.kind === "ai")) : false;
+  if (a.data_ready === false) missing.push("Financial Datasets key (stock data)");
+  if (usesAI && a.model.key_env && !a.model.key_set) missing.push(`${a.model.provider} key (this fund has AI analysts using ${a.model.label})`);
   if (!missing.length) return "";
   return `<section class="frame coin"><div class="big disp">INSERT COIN</div>
     <div>Add ${missing.map(esc).join(" and ")} before you can play a day. Keys stay on this computer.</div>
@@ -395,7 +397,7 @@ function partyPanel(f) {
             <span class="power" title="Confidence ${sig?.confidence ?? 0} of 100">${Array.from({ length: 10 }, (_, i) => `<i class="${i < bars ? "on" : ""}"></i>`).join("")}</span></div></div>
         <div class="bubble ${!sig || stance === "abstain" ? "quiet" : ""}">${esc(words)}</div></article>`;
     }).join("");
-    return `<div class="squad"><div class="label"><span>Squad · ${esc(s.name)}</span><span class="faint">${esc(s.mode.replace("_", " "))} · ${Math.round(s.weight * 100) / 100}× capital share</span></div><div class="party">${heroes}</div></div>`;
+    return `<div class="squad"><div class="label"><span>Squad · ${esc(s.name)}</span><span class="faint">${esc(s.mode.replace("_", " "))}${s.method === "slot_weighted" ? " · equal slots, cash when out" : ""} · ${Math.round(s.weight * 100) / 100}× capital share</span></div><div class="party">${heroes}</div></div>`;
   }).join("");
   const when = view ? `${view.status === "pending" ? "Views from" : "Last views from"} ${day(view.as_of)}${view.status === "pending" ? " · executes at the next close" : ""}` : "No views yet";
   return `<header><h3>The party</h3><span class="label">${esc(when)}</span></header><div class="tabs" role="tablist">${tabs}</div>${squads}`;
@@ -409,7 +411,9 @@ function nextPanel(f) {
     const style = w >= 0 ? `left:50%;width:${width}%` : `right:50%;width:${width}%`;
     return `<div class="target"><span class="tk">${esc(t)}</span><div class="split"><i class="${w < 0 ? "short" : ""}" style="${style}"></i></div><span class="num ${cls(w)}" style="text-align:right">${pct(w, 0)}</span></div>`;
   }).join("") || `<div class="muted">Stay in cash.</div>`;
-  const trims = (plan.clamps || []).map((c) => `<div class="trim">Risk officer trimmed ${esc(c.ticker || "the whole book")}: ${pct(c.before, 0)} → ${pct(c.after, 0)}</div>`).join("");
+  const trims = (plan.clamps || []).map((c) => c.limit === "market_filter"
+    ? `<div class="trim">Market shield is up: the S&amp;P 500 is below its long-term average, so only ${pct(c.after, 0)} is invested (wanted ${pct(c.before, 0)}).</div>`
+    : `<div class="trim">Risk officer trimmed ${esc(c.ticker || "the whole book")}: ${pct(c.before, 0)} → ${pct(c.after, 0)}</div>`).join("");
   return `<header><h3>Next move</h3><span class="label">${plan.done ? "last plan, done" : "waiting to execute"}</span></header>
     <p class="muted" style="margin:0 0 12px;font-size:12px">${plan.done ? `The plan from ${day(plan.as_of)}, already traded.` : `Target share of the fund for each stock, decided ${day(plan.as_of)}. It trades at the next day's closing price.`} Right of the line is owning, left is betting against.</p>
     <div class="targets">${rows}</div>${trims}`;
@@ -420,7 +424,9 @@ function logPanel(f) {
   const line = (e) => {
     switch (e.kind) {
       case "trade": return [e.side, e.side === "buy" ? "Buy" : "Sell", `${e.side === "buy" ? "Bought" : "Sold"} ${e.quantity.toLocaleString()} ${esc(e.ticker)} @ ${money(e.price, true)} · ${money(e.value)}`];
-      case "clamp": return ["risk", "Risk", `Capped ${esc(e.ticker || "total exposure")} from ${pct(e.before, 0)} to ${pct(e.after, 0)}`];
+      case "clamp": return e.limit === "market_filter"
+        ? ["risk", "Shield", `Market below its long-term average: cut money invested from ${pct(e.before, 0)} to ${pct(e.after, 0)}`]
+        : ["risk", "Risk", `Capped ${esc(e.ticker || "total exposure")} from ${pct(e.before, 0)} to ${pct(e.after, 0)}`];
       case "decision": return ["plan", "Plan", `New plan: ${Object.entries(e.targets).map(([t, w]) => `${esc(t)} ${pct(w, 0)}`).join(", ") || "all cash"}`];
       case "halt": return ["halt", "Frozen", esc(e.detail || "halted")];
       case "resume": return ["resume", "Resume", "Trading resumed"];
@@ -503,7 +509,7 @@ function settingsModal(error = "") {
     <form id="keys-form">
       <div class="field"><label class="label" for="fd-key">Financial Datasets key · stock data</label>
         <input id="fd-key" type="password" autocomplete="off" placeholder="${a.data_key_set ? "Saved ✓ (paste to replace)" : "Paste your key"}">
-        <span class="hint ${a.data_key_set ? "ok" : "warn"}">${a.data_key_set ? "Saved" : "Needed to play. Get one at financialdatasets.ai"}</span></div>
+        <span class="hint ${a.data_key_set ? "ok" : ""}">${a.data_key_set ? "Saved: company financials on, for the AI analysts" : "Optional. Without it the app uses free Yahoo prices, which is all the maths-only analysts need. AI analysts need it to read company financials."}</span></div>
       <div class="field"><label class="label" for="model">AI model · what your analysts think with</label>
         <select id="model">${Object.entries(byProvider).map(([p, ms]) => `<optgroup label="${esc(p)}">${ms.map((x) => `<option value="${esc(x.id)}" ${x.id === m.id ? "selected" : ""}>${esc(x.label)}${x.key_set ? " ✓" : ""}</option>`).join("")}</optgroup>`).join("")}</select>
         <span class="hint">Cheaper models cost cents per day played; top models can cost dollars. DeepSeek Flash is a cheap start.</span></div>
@@ -538,12 +544,16 @@ function newGameModal(error = "", values = {}) {
     <form id="new-form">
       <div class="field"><label class="label" for="g-name">Save name</label><input id="g-name" required pattern="[A-Za-z0-9][A-Za-z0-9._-]*" maxlength="40" placeholder="e.g. my-first-fund" value="${esc(values.name || "")}"><span class="hint">Letters, numbers, dashes. No spaces.</span></div>
       <div class="field"><label class="label" for="g-team">Team</label><select id="g-team">${ms.map((m) => `<option value="${esc(m.file)}" ${values.mandate === m.file ? "selected" : ""}>${esc(m.name)}</option>`).join("")}</select><span class="hint" id="g-team-hint"></span></div>
-      <div class="field"><label class="label" for="g-stocks">Stocks to watch</label><input id="g-stocks" required placeholder="AAPL, MSFT, NVDA" value="${esc(values.universe || "")}"><span class="hint">US stock tickers, separated by commas. Start with 3 to keep data costs low.</span></div>
+      <div class="field"><label class="label" for="g-stocks">Stocks to watch</label><input id="g-stocks" required placeholder="AAPL, MSFT, NVDA" value="${esc(values.universe || "")}"><span class="hint" id="g-stocks-hint">US stock or ETF tickers, separated by commas.</span></div>
       <div class="field"><label class="label" for="g-cap">Starting money (pretend)</label><input id="g-cap" inputmode="decimal" value="${esc(values.capital || "")}"></div>
       ${error ? `<div class="error">${esc(error)}</div>` : ""}
       <div class="foot"><button type="button" class="btn ghost" data-act="close">Cancel</button><button class="btn gold" type="submit">Start game</button></div></form>`);
-  const sync = () => { const m = ms.find((x) => x.file === $("#g-team").value); $("#g-team-hint").textContent = `${describe(m)} · trades ${m.rebalance}`; if (!$("#g-cap").value || $("#g-cap").dataset.auto) { $("#g-cap").value = m.capital; $("#g-cap").dataset.auto = "1"; } };
+  const SUGGEST = { "trend-shield": "SPY, EFA, IEF, VNQ, GLD", "momentum-leaders": "AAPL, MSFT, NVDA, AMZN, GOOGL, META, JPM, V, LLY, XOM, COST, HD", "ai-quality-check": "AAPL, MSFT, NVDA, GOOGL, JPM, LLY, COST, XOM" };
+  const sync = () => { const m = ms.find((x) => x.file === $("#g-team").value); $("#g-team-hint").textContent = `${describe(m)} · trades ${m.rebalance}`;
+    const tip = SUGGEST[m.file]; $("#g-stocks-hint").textContent = tip ? `Suggested for this team: ${tip}` : "US stock or ETF tickers, separated by commas.";
+    if (tip && (!$("#g-stocks").value || $("#g-stocks").dataset.auto)) { $("#g-stocks").value = tip; $("#g-stocks").dataset.auto = "1"; } if (!$("#g-cap").value || $("#g-cap").dataset.auto) { $("#g-cap").value = m.capital; $("#g-cap").dataset.auto = "1"; } };
   $("#g-cap").addEventListener("input", () => delete $("#g-cap").dataset.auto);
+  $("#g-stocks").addEventListener("input", () => delete $("#g-stocks").dataset.auto);
   $("#g-team").addEventListener("change", sync); sync();
   $("#new-form").addEventListener("submit", async (ev) => {
     ev.preventDefault();
@@ -683,7 +693,7 @@ function demoData() {
     view: { as_of: last.session, status: "pending", signals, targets, clamps: [{ ticker: "MSFT", limit: "max_position_pct", before: 0.29, after: 0.25 }] },
     pending: { as_of: last.session, targets, clamps: [{ ticker: "MSFT", limit: "max_position_pct", before: 0.29, after: 0.25 }] }, log, run: { state: "idle" } };
   const summary = (({ spec, series, holdings, view, log, run, ...rest }) => rest)(fund);
-  const state = { data_key_set: true, model: { id: "deepseek-flash", label: "DeepSeek V4.1 Flash", provider: "DeepSeek", key_env: "DEEPSEEK_API_KEY", key_set: true },
+  const state = { data_key_set: false, data_source: "yahoo", data_label: "Yahoo Finance (free, prices only)", data_ready: true, model: { id: "deepseek-flash", label: "DeepSeek V4.1 Flash", provider: "DeepSeek", key_env: "DEEPSEEK_API_KEY", key_set: true },
     models: [{ id: "deepseek-flash", label: "DeepSeek V4.1 Flash", provider: "DeepSeek", key_env: "DEEPSEEK_API_KEY", key_set: true }],
     mandates: [{ file: "example", ...spec }], funds: [summary, { ...summary, name: "tech-trio", universe: ["GOOGL", "AMZN", "META"], sessions: 0, last_session: null, nav: cap, return_pct: 0, benchmark_return_pct: null, pending: false }] };
   return { state, fund };

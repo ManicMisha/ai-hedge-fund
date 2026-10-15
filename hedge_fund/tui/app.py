@@ -44,7 +44,10 @@ from hedge_fund.backtesting.fund import (
     performance_metrics,
 )
 from hedge_fund.brokers import Fill
-from hedge_fund.data import CachedDataClient, FDClient
+# FDClient / CachedDataClient open the active market-data source: Financial
+# Datasets when its key is set, otherwise free Yahoo prices (data/source.py).
+from hedge_fund.data.source import open_client as FDClient, with_cache as CachedDataClient
+from hedge_fund.data.source import needs_data_key
 from hedge_fund.data.sessions import previous_day
 from hedge_fund.fund import (
     custom_strategy,
@@ -281,7 +284,7 @@ def _demand_run_keys(app, resume) -> bool:
     this gate so the next missing key is asked for in turn. Ask here, not
     deep inside a worker thread: a run that dies on a missing credential has
     already spent minutes of warming."""
-    if not os.environ.get("FINANCIAL_DATASETS_API_KEY"):
+    if needs_data_key():
         app.push_screen(
             KeyPromptScreen("Financial Datasets",
                             "FINANCIAL_DATASETS_API_KEY"),

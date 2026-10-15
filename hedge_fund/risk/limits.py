@@ -15,7 +15,24 @@ from __future__ import annotations
 from math import isfinite
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_serializer
+
+
+class MarketFilter(BaseModel):
+    """Cut the fund's total exposure while its benchmark is in a downtrend.
+
+    When the benchmark's latest close is below its `ma_days` moving average,
+    the gross-exposure cap drops to `risk_off_gross` for that decision. It
+    only ever lowers the cap. Bear markets usually unfold over months, which
+    is what gives a trend rule time to step aside; the price is lagging in
+    sharp rebounds and paying for some false alarms.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    ma_days: int = Field(default=200, ge=20, le=400, description="benchmark moving-average length, trading days")
+    risk_off_gross: float = Field(default=0.3, gt=0, le=1.0,
+                                  description="max gross exposure while the benchmark is below its average")
 
 
 class RiskLimits(BaseModel):
@@ -29,12 +46,25 @@ class RiskLimits(BaseModel):
     max_gross_exposure: float = Field(
         gt=0, description="max sum of |weights| across the book (1.0 = unlevered)"
     )
+    market_filter: MarketFilter | None = Field(
+        default=None, description="optional: lower the gross cap while the benchmark trends down"
+    )
+
+    @model_serializer(mode="wrap")
+    def _omit_absent_filter(self, handler):
+        # Ledgers hash their records' JSON. A fund without a market filter must
+        # serialize exactly as it did before the option existed, or every
+        # older ledger would fail verification.
+        data = handler(self)
+        if self.market_filter is None and isinstance(data, dict):
+            data.pop("market_filter", None)
+        return data
 
 
 class ClampEvent(BaseModel):
     """One limit firing — recorded so every clamp is explainable."""
 
-    limit: Literal["max_position_pct", "max_gross_exposure"]
+    limit: Literal["max_position_pct", "max_gross_exposure", "market_filter"]
     ticker: str | None = None  # None for the portfolio-level gross clamp
     before: float
     after: float

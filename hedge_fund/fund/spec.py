@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Literal, TypeAlias
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, field_validator, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator, ValidationError
 
 from hedge_fund.risk.limits import RiskLimits
 from hedge_fund.signals import ALPHA_MODEL_REGISTRY, LLMAgent, get_investment_approach
@@ -36,9 +36,20 @@ class BlendPolicy(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    method: Literal["conviction_weighted"] = "conviction_weighted"
+    method: Literal["conviction_weighted", "slot_weighted"] = Field(
+        default="conviction_weighted",
+        description="conviction_weighted: views are normalized so the sleeve is always fully "
+        "invested when any view exists. slot_weighted: every ticker gets an equal slot "
+        "(gross_target / N) filled in proportion to its score; unused slots stay in cash.",
+    )
     gross_target: float = Field(default=1.0, gt=0, description="desired sum of |weights| when views exist")
     mode: PortfolioMode
+
+    @model_validator(mode="after")
+    def _slots_need_one_book(self) -> "BlendPolicy":
+        if self.method == "slot_weighted" and self.mode == "dollar_neutral":
+            raise ValueError("slot_weighted cannot be dollar_neutral: unused slots are cash, not a hedge")
+        return self
 
 
 class StrategySpec(BaseModel):

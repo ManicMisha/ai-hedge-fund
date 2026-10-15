@@ -20,7 +20,6 @@ for it. One run per fund at a time.
 from __future__ import annotations
 
 import json
-import os
 import re
 import threading
 import webbrowser
@@ -33,6 +32,7 @@ from typing import Callable, Iterator
 from urllib.parse import urlparse
 
 from hedge_fund.data.protocol import DataClient
+from hedge_fund.data.source import needs_data_key
 from hedge_fund.fund import Fund, FundSpec, load_spec, normalize_universe
 from hedge_fund.llm import load_api_models, provider_for
 from hedge_fund.paper import (
@@ -54,12 +54,12 @@ DataFactory = Callable[[], AbstractContextManager[DataClient]]
 
 
 @contextmanager
-def financial_datasets() -> Iterator[DataClient]:
-    """The data client the CLI uses: Financial Datasets behind the disk cache."""
-    from hedge_fund.data import CachedDataClient, FDClient
+def market_data() -> Iterator[DataClient]:
+    """The data client the CLI uses: the active source (data/source.py), cached."""
+    from hedge_fund.data.source import open_client, with_cache
 
-    with FDClient() as raw:
-        yield CachedDataClient(raw)
+    with open_client() as raw:
+        yield with_cache(raw)
 
 
 class ApiError(Exception):
@@ -131,7 +131,7 @@ class Dashboard:
         paper_root: Path,
         mandates_root: Path,
         *,
-        data: DataFactory = financial_datasets,
+        data: DataFactory = market_data,
         build_fund: Callable[[FundSpec], Fund] | None = None,
         save_key: Callable[[str, str], object] | None = None,
     ) -> None:
@@ -158,8 +158,8 @@ class Dashboard:
         that is due, the decision it will execute, whether a new decision
         follows. The one read that touches the network."""
         directory = self._fund_dir(name)
-        self._require_keys()
         deployed = load_deployed(directory)
+        self._require_keys(deployed.spec)
         state = Ledger(directory).replay(deployed.spec.capital)
         with self.data() as data:
             due = next_session(data, deployed.spec.benchmark, state.last_session)
@@ -213,7 +213,7 @@ class Dashboard:
         mode = body.get("mode", "run")
         if mode not in ("run", "redo"):
             raise ApiError(HTTPStatus.BAD_REQUEST, "mode must be 'run' or 'redo'")
-        self._require_keys()
+        self._require_keys(load_deployed(directory).spec)
         halted = Ledger(directory).halted()
         if halted:
             raise ApiError(HTTPStatus.CONFLICT, f"{name} is halted: {halted}. Resume it first.")
@@ -276,14 +276,20 @@ class Dashboard:
             raise ApiError(HTTPStatus.BAD_REQUEST, f"no fund plan named {stem!r}")
         return path
 
-    def _require_keys(self) -> None:
-        if not os.environ.get(views.DATA_KEY):
+    def _require_keys(self, spec: FundSpec) -> None:
+        """Refuse a run early, by name, when a key it needs is missing: the
+        Financial Datasets key only when that is the active data source, and
+        the AI key only when the fund staffs an LLM analyst."""
+        if needs_data_key():
             raise ApiError(HTTPStatus.PRECONDITION_REQUIRED,
-                           "Add your Financial Datasets key first (Settings).")
+                           "Add your Financial Datasets key first (Keys & model), "
+                           "or remove DATA_SOURCE=financialdatasets to use free Yahoo prices.")
+        uses_ai = any(views.analyst_view(m.name)["kind"] == "ai"
+                      for s in spec.strategies for m in s.models)
         model = views.current_model()
-        if model["key_env"] and not model["key_set"]:
+        if uses_ai and model["key_env"] and not model["key_set"]:
             raise ApiError(HTTPStatus.PRECONDITION_REQUIRED,
-                           f"Add your {model['provider']} key for {model['label']} first (Settings).")
+                           f"Add your {model['provider']} key for {model['label']} first (Keys & model).")
 
 
 # ---------------------------------------------------------------------------

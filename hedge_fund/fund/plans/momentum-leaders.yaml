@@ -1,0 +1,33 @@
+# Momentum Leaders — the beat-the-market fund. No AI, no paid data.
+#
+# Ranks a list of large US companies by three price signals and owns the
+# strongest: the past year's return skipping the latest month (counted
+# twice), whether the price is above its 200-day average, and how calm the
+# stock is. When the S&P 500 itself falls below its 200-day average, the
+# market filter cuts the whole fund to at most 30% invested, because
+# momentum's worst crashes came right after market bottoms (2009: over -70%
+# for the long/short version). Long-only, so it never bets against stocks.
+#
+# Suggested stocks to watch (12 across sectors):
+#   AAPL, MSFT, NVDA, AMZN, GOOGL, META, JPM, V, LLY, XOM, COST, HD
+#
+# Cost: $0 AI. Works on free Yahoo prices. Rebalances monthly to keep
+# trading costs low.
+schema_version: 2
+name: momentum-leaders
+strategies:
+  - name: leaders
+    display_name: Momentum Leaders
+    blend: {mode: long_only}
+    models:
+      - name: momentum
+        weight: 2
+      - name: trend
+      - name: low_vol
+risk:
+  max_position_pct: 0.12
+  max_gross_exposure: 1.0
+  market_filter: {ma_days: 200, risk_off_gross: 0.3}
+capital: 100000
+rebalance: monthly
+benchmark: SPY

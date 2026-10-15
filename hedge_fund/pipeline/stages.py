@@ -64,6 +64,7 @@ def assess_fund(
             signals, strategy.model_weights, strategy.blend.gross_target,
             mode=strategy.blend.mode,
             investment_approaches={m.name: get_investment_approach(m.name) for m in strategy.models},
+            method=strategy.blend.method,
         )
         slice_ = strategy.weight / total_slice
         for ticker, weight in blend.weights.items():
@@ -79,7 +80,18 @@ def assess_fund(
         ))
 
     preserve_proportions = any(s.blend.mode == "dollar_neutral" for s in spec.strategies)
-    risk = apply_limits(netted, spec.risk, preserve_proportions=preserve_proportions)
+    limits = spec.risk
+    risk_off = (_market_risk_off(spec.benchmark, as_of, limits.market_filter, data_client)
+                if limits.market_filter is not None else False)
+    if risk_off:
+        limits = limits.model_copy(update={
+            "max_gross_exposure": min(limits.max_gross_exposure, limits.market_filter.risk_off_gross),
+        })
+    risk = apply_limits(netted, limits, preserve_proportions=preserve_proportions)
+    if risk_off:
+        # The gross cut that fired is the market filter's, not the mandate's ceiling.
+        risk.clamps = [c.model_copy(update={"limit": "market_filter"}) if c.limit == "max_gross_exposure" else c
+                       for c in risk.clamps]
     if risk.scale_factor is not None:
         multipliers = dict.fromkeys(netted, risk.scale_factor)
     else:
@@ -169,6 +181,20 @@ def execute_decision(
 # ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
+
+def _market_risk_off(benchmark: str, as_of: str, rule, data_client: DataClient) -> bool:
+    """True when the benchmark's close on *as_of* is below its moving average.
+    Point-in-time: only closes on or before *as_of*. Too little history is an
+    error, not a silent risk-on."""
+    from hedge_fund.signals.price import closes_through
+
+    closes = closes_through(data_client, benchmark, as_of, rule.ma_days)
+    if len(closes) < rule.ma_days:
+        raise ValueError(f"market filter: {benchmark} has {len(closes)} closes before {as_of}, "
+                         f"needs {rule.ma_days}")
+    average = sum(closes[-rule.ma_days:]) / rule.ma_days
+    return closes[-1] < average
+
 
 def _mark_prices(
     tickers: list[str],

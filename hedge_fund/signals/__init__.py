@@ -12,10 +12,14 @@ from hedge_fund.signals.llm_agent import LLMAgent
 from hedge_fund.signals.lynch import LynchAgent
 from hedge_fund.signals.munger import MungerAgent
 from hedge_fund.signals.pead import PEADModel
+from hedge_fund.signals.price import LowVolatilityModel, MomentumModel, TrendModel
 
 ALPHA_MODEL_REGISTRY: dict[str, type[AlphaModel]] = {
     # Quant models
     "pead": PEADModel,
+    "trend": TrendModel,
+    "momentum": MomentumModel,
+    "low_vol": LowVolatilityModel,
     # LLM investor agents
     "buffett": BuffettAgent,
     "munger": MungerAgent,
@@ -50,6 +54,9 @@ __all__ = [
     "LynchAgent",
     "DruckenmillerAgent",
     "PEADModel",
+    "TrendModel",
+    "MomentumModel",
+    "LowVolatilityModel",
     "ALPHA_MODEL_REGISTRY",
     "get_investment_approach",
 ]

@@ -33,6 +33,7 @@ def blend_signals(
     *,
     mode: PortfolioMode,
     investment_approaches: Mapping[str, InvestmentApproach],
+    method: str = "conviction_weighted",
 ) -> BlendResult:
     """Blend voting opinions, respecting each analyst's permission to short.
 
@@ -42,13 +43,21 @@ def blend_signals(
     assessment. Long-only bearishness can therefore reduce ownership without
     creating or strengthening short evidence.
 
-    Eligible scores are normalized to gross_target. Dollar-neutral strategies
+    With method="conviction_weighted", eligible scores are normalized to
+    gross_target. With method="slot_weighted", each ticker owns an equal slot
+    of gross_target / N and fills it in proportion to its score (scores lie in
+    [-1, 1]), so weak or absent views leave cash instead of being scaled up.
+    Dollar-neutral strategies
     allocate half to each side, or target zero when either side is missing.
     This relative sizing does not calibrate conviction into expected returns.
     Invalid modes, profiles, weights, or signal values raise ValueError.
     """
     if mode not in ("long_only", "long_short", "dollar_neutral"):
         raise ValueError(f"unknown portfolio mode {mode!r}")
+    if method not in ("conviction_weighted", "slot_weighted"):
+        raise ValueError(f"unknown blend method {method!r}")
+    if method == "slot_weighted" and mode == "dollar_neutral":
+        raise ValueError("slot_weighted cannot be dollar_neutral")
     if not isfinite(gross_target) or gross_target <= 0:
         raise ValueError("gross_target must be finite and positive")
     for name, weight in model_weights.items():
@@ -93,6 +102,12 @@ def blend_signals(
             flat_reason = "missing_short_side"
         else:
             weights = {t: score / (longs if score > 0 else shorts) * (gross_target / 2) for t, score in scores.items()}
+    elif method == "slot_weighted":
+        slot = gross_target / len(tickers) if tickers else 0.0
+        if sum(abs(score) for score in scores.values()) < WEIGHT_TOLERANCE:
+            flat_reason = "no_eligible_positions"
+        else:
+            weights = {t: slot * score for t, score in scores.items()}
     else:
         gross = sum(abs(score) for score in scores.values())
         if gross < WEIGHT_TOLERANCE:
