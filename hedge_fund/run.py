@@ -31,6 +31,10 @@ Usage::
 
     aihf paper status alpha | list | halt alpha --reason "..." | resume alpha
 
+    aihf web
+        The dashboard in your browser at http://localhost:8000: your paper
+        funds, the analysts' views, the trade log, Play / Halt controls.
+
 A mandate is the desk — strategies, staff, risk, capital, cadence — and
 never names tickers; the universe is fixed when a fund is deployed (paper)
 or given per study (backtest).
@@ -85,6 +89,12 @@ def main() -> None:
         HedgeFundApp().run()
         return
 
+    if args.command == "web":
+        from hedge_fund.web import serve
+
+        serve(port=args.port, open_browser=not args.no_browser)
+        return
+
     console = Console(stderr=True)  # status + summary on stderr; stdout stays pure JSON
     try:
         if args.command == "backtest":
@@ -126,6 +136,15 @@ def _parser() -> argparse.ArgumentParser:
     backtest.add_argument("--start", help=f"first session YYYY-MM-DD (default: {_BACKTEST_WEEKS} weeks before --end)")
     backtest.add_argument("--end", help="last session YYYY-MM-DD (default: the latest completed session)")
     backtest.add_argument("--out", help="also write the result JSON to this file")
+
+    web = commands.add_parser(
+        "web", help="open the dashboard in your browser",
+        description="Serve the dashboard on this computer only (127.0.0.1) and open it "
+        "in your browser: your paper funds, the analysts' views, the trade log, and "
+        "Play / Halt controls. Ctrl+C stops it.",
+    )
+    web.add_argument("--port", type=int, default=8000, help="port to serve on (default: 8000)")
+    web.add_argument("--no-browser", action="store_true", help="don't open a browser tab")
 
     paper = commands.add_parser("paper", help="deploy and advance a paper fund")
     actions = paper.add_subparsers(dest="action", required=True)

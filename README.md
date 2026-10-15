@@ -57,6 +57,16 @@ With no arguments, this launches the interactive terminal app. It has two modes:
 - **Paper trading** — your funds, each with a ledger of real market days and fake money. Highlight a fund to see what its next run will do; press enter to run it through the next completed session (an approval step shows the exact decision about to execute before anything trades), `s` for its full session history, `h`/`r` for the kill switch. Build a new fund from the same list: strategies, capital, cadence, tickers, and it is live. Every session is appended to a hash-chained ledger in `~/.hedge-fund/paper/<name>/`, so NAV is a track record, not a reset.
 - **Backtesting** — replay a fund over history and watch its equity curve draw against its benchmark. Results are saved to `~/.hedge-fund/research/`. Fund definitions live in `~/.hedge-fund/mandates/` and carry no tickers; you pick the universe per backtest.
 
+### Web dashboard
+
+```bash
+aihf web
+```
+
+Opens an arcade-style dashboard at http://localhost:8000 for your paper funds: each fund as a save file, the analysts as a party with their latest views per stock, fund value against the S&P 500, holdings, the next plan, and a battle log of every trade, risk trim and halt. **Play next day** shows what will happen and asks before it runs one session (the same `tick` the CLI uses); **Freeze** is the kill switch. You can add keys, pick the AI model and start a new fund from the page.
+
+It serves this computer only (127.0.0.1) and needs no extra install. `--port 8080` to move it, `--no-browser` to skip opening a tab. Backtesting is still in the terminal app.
+
 
 
 ## Development

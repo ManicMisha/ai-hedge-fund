@@ -1,0 +1,713 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hedge Fund Arcade</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: a game HUD around a playfield. Save-file select first, then one fund
+   as a party screen: stats bar, quest map + inventory, the party, the log, and
+   a sticky action bar. One deliberate night-arcade world (single theme). */
+:root {
+  color-scheme: dark;
+  --void: #0f0c1d;
+  --panel: #1a1530;
+  --panel-2: #241d42;
+  --edge: #3b3066;
+  --ink: #f3eeff;
+  --muted: #a49bcb;
+  --faint: #6e6596;
+  --gold: #ffc93c;
+  --gold-deep: #c78f00;
+  --hp: #47e08f;
+  --dmg: #ff5a76;
+  --mana: #5cc8ff;
+  --display: "Pixelify Sans", "Courier New", monospace;
+  --body: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --px: 4px;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--void); color: var(--ink);
+  font: 14px/1.5 var(--body);
+  background-image:
+    radial-gradient(circle at 20% -10%, rgba(92, 200, 255, .08), transparent 40%),
+    radial-gradient(circle at 90% 0%, rgba(255, 201, 60, .06), transparent 35%);
+  background-attachment: fixed;
+}
+button, input, select { font: inherit; color: inherit; }
+.wrap { max-width: 1240px; margin: 0 auto; padding-inline: 16px; padding-block: 18px 120px; }
+h1, h2, h3, .disp { font-family: var(--display); font-weight: 600; letter-spacing: .02em; margin: 0; text-wrap: balance; }
+.label { font-family: var(--display); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.num { font-family: var(--display); font-variant-numeric: tabular-nums; }
+.up { color: var(--hp); } .down { color: var(--dmg); } .flat { color: var(--muted); }
+.muted { color: var(--muted); } .faint { color: var(--faint); }
+
+/* pixel frames: a chunky border with notched corners */
+.frame {
+  background: var(--panel); border: var(--px) solid var(--edge); padding: 16px;
+  clip-path: polygon(var(--px) 0, calc(100% - var(--px)) 0, calc(100% - var(--px)) var(--px), 100% var(--px),
+    100% calc(100% - var(--px)), calc(100% - var(--px)) calc(100% - var(--px)), calc(100% - var(--px)) 100%,
+    var(--px) 100%, var(--px) calc(100% - var(--px)), 0 calc(100% - var(--px)), 0 var(--px), var(--px) var(--px));
+  min-width: 0;
+}
+.frame > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+
+/* buttons */
+.btn {
+  --c: var(--panel-2); --t: var(--ink); --s: #120e24;
+  background: var(--c); color: var(--t); border: 0; cursor: pointer;
+  font-family: var(--display); font-weight: 600; font-size: 15px; letter-spacing: .06em; text-transform: uppercase;
+  padding: 10px 16px 12px; box-shadow: inset 0 calc(-1 * var(--px)) 0 var(--s), 0 0 0 var(--px) var(--edge);
+  transition: transform .06s, filter .12s;
+}
+.btn:hover { filter: brightness(1.12); }
+.btn:active { transform: translateY(2px); box-shadow: inset 0 -2px 0 var(--s), 0 0 0 var(--px) var(--edge); }
+.btn:disabled { opacity: .45; cursor: not-allowed; filter: none; transform: none; }
+.btn.gold { --c: var(--gold); --t: #2a1c00; --s: var(--gold-deep); }
+.btn.red { --c: #8c2338; --t: #ffe3e8; --s: #4f101f; }
+.btn.green { --c: #1f7a4c; --t: #e3ffef; --s: #0f4128; }
+.btn.ghost { --c: transparent; --s: transparent; box-shadow: 0 0 0 2px var(--edge); }
+.btn.small { font-size: 12px; padding: 6px 10px 8px; }
+.btn:focus-visible, .slot:focus-visible, .tab:focus-visible, input:focus-visible, select:focus-visible {
+  outline: 3px solid var(--mana); outline-offset: 3px;
+}
+.pill { font-family: var(--display); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; padding: 2px 8px; border: 2px solid currentColor; white-space: nowrap; }
+
+/* top bar */
+.topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand .logo { width: 40px; height: 40px; image-rendering: pixelated; }
+.brand h1 { font-size: 26px; line-height: 1; }
+.brand h1 span { color: var(--gold); }
+.brand .sub { font-size: 11px; color: var(--muted); letter-spacing: .12em; text-transform: uppercase; font-family: var(--display); }
+.chips { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.demo-banner { background: repeating-linear-gradient(-45deg, #3a2a00 0 10px, #2c2000 10px 20px); color: var(--gold); text-align: center; padding: 8px 16px; font-family: var(--display); letter-spacing: .1em; font-size: 13px; }
+
+/* insert-coin banner */
+.coin { display: grid; grid-template-columns: auto 1fr auto; gap: 16px; align-items: center; margin-bottom: 18px; border-color: var(--gold-deep); }
+.coin .big { font-size: 22px; color: var(--gold); animation: blink 1.1s steps(2) infinite; }
+@keyframes blink { 50% { opacity: .25; } }
+
+/* save slots */
+.slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 18px; }
+.slot { text-align: left; cursor: pointer; display: grid; gap: 10px; color: inherit; font: inherit; }
+.slot:hover { background: var(--panel-2); }
+.slot .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.slot h3 { font-size: 22px; overflow-wrap: anywhere; }
+.slot .meta { font-size: 12px; color: var(--muted); }
+.slot.new { place-items: center; text-align: center; min-height: 190px; border-style: dashed; color: var(--gold); }
+.slot.new .plus { font-family: var(--display); font-size: 44px; line-height: 1; }
+
+/* bars */
+.bar { height: 14px; background: #0c0918; border: 2px solid var(--edge); position: relative; overflow: hidden; }
+.bar > i { position: absolute; inset: 0 auto 0 0; background: var(--hp);
+  background-image: repeating-linear-gradient(90deg, transparent 0 10px, rgba(0,0,0,.28) 10px 12px); }
+.bar > i.bad { background-color: var(--dmg); }
+.bar > i.boss { background-color: var(--mana); }
+.bar > b { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--ink); opacity: .7; }
+
+/* fund HUD */
+.hud { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+.hud h2 { font-size: 30px; overflow-wrap: anywhere; }
+.lv { font-family: var(--display); background: var(--gold); color: #2a1c00; padding: 2px 8px; font-size: 14px; font-weight: 700; }
+.stats { display: grid; grid-template-columns: 1.3fr 1fr 1fr .9fr; gap: 18px; margin-bottom: 18px; }
+.stat .value { font-size: 34px; line-height: 1.05; margin: 6px 0 8px; }
+.stat .note { font-size: 12px; color: var(--muted); margin-top: 6px; }
+.grid2 { display: grid; grid-template-columns: minmax(0, 1.9fr) minmax(0, 1fr); gap: 18px; margin-bottom: 18px; }
+.chart-box { position: relative; height: 280px; }
+.chart-box canvas { width: 100%; height: 100%; display: block; }
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); align-items: center; flex-wrap: wrap; }
+.legend i { display: inline-block; width: 14px; height: 4px; vertical-align: middle; margin-right: 6px; }
+.empty { color: var(--muted); padding: 28px 8px; text-align: center; }
+
+/* inventory */
+.inv { display: grid; gap: 8px; }
+.item { display: grid; grid-template-columns: 52px 1fr auto; gap: 10px; align-items: center; padding: 8px; background: #140f27; border: 2px solid var(--edge); }
+.item .tk { font-family: var(--display); font-size: 16px; font-weight: 700; background: var(--panel-2); text-align: center; padding: 6px 0; color: var(--mana); }
+.item .tk.cash { color: var(--gold); }
+.item .sub { font-size: 12px; color: var(--muted); }
+.item .val { text-align: right; }
+.mini { height: 6px; background: #0c0918; margin-top: 4px; }
+.mini > i { display: block; height: 100%; background: var(--mana); }
+
+/* party */
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.tab { background: transparent; border: 2px solid var(--edge); color: var(--muted); cursor: pointer; padding: 4px 12px; font-family: var(--display); font-size: 15px; letter-spacing: .06em; }
+.tab[aria-selected="true"] { background: var(--mana); border-color: var(--mana); color: #04131c; }
+.squad { margin-top: 14px; }
+.squad > .label { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+.party { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; }
+.hero { display: grid; grid-template-columns: 64px 1fr; gap: 12px; align-items: start; background: #140f27; border: 2px solid var(--edge); padding: 12px; min-width: 0; }
+.hero img { width: 64px; height: 64px; image-rendering: pixelated; background: #0c0918; border: 2px solid var(--edge); }
+.hero .who { font-family: var(--display); font-size: 17px; font-weight: 600; line-height: 1.15; }
+.hero .cls { font-size: 11px; color: var(--muted); }
+.hero .row { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.power { display: flex; gap: 2px; }
+.power i { width: 8px; height: 12px; background: #2b2450; }
+.power i.on { background: var(--gold); }
+.bubble { grid-column: 1 / -1; position: relative; background: var(--ink); color: #1a1530; padding: 10px 12px; font-size: 13px; line-height: 1.45; margin-top: 4px; overflow-wrap: anywhere; }
+.bubble::before { content: ""; position: absolute; top: -8px; left: 24px; border: 8px solid transparent; border-top: 0; border-bottom-color: var(--ink); }
+.bubble.quiet { background: #2b2450; color: var(--muted); }
+.bubble.quiet::before { border-bottom-color: #2b2450; }
+.stance-bullish { color: var(--hp); } .stance-bearish { color: var(--dmg); } .stance-neutral { color: var(--muted); } .stance-abstain { color: var(--faint); }
+
+/* next move */
+.targets { display: grid; gap: 10px; }
+.target { display: grid; grid-template-columns: 56px 1fr 60px; gap: 10px; align-items: center; }
+.target .tk { font-family: var(--display); color: var(--mana); font-weight: 700; }
+.split { height: 12px; background: #0c0918; position: relative; border: 2px solid var(--edge); }
+.split::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 2px; background: var(--faint); }
+.split > i { position: absolute; top: 0; bottom: 0; background: var(--hp); }
+.split > i.short { background: var(--dmg); }
+.trim { font-size: 12px; color: var(--gold); margin-top: 10px; }
+
+/* log */
+.log { display: grid; gap: 0; max-height: 420px; overflow: auto; }
+.entry { display: grid; grid-template-columns: 96px 72px 1fr; gap: 12px; padding: 8px 4px; border-bottom: 2px dashed #2b2450; align-items: baseline; font-size: 13px; }
+.entry .when { color: var(--faint); font-variant-numeric: tabular-nums; }
+.tag { font-family: var(--display); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; text-align: center; padding: 1px 4px; }
+.tag.buy { background: var(--hp); color: #052814; } .tag.sell { background: var(--dmg); color: #2c0610; }
+.tag.risk { background: var(--gold); color: #2a1c00; } .tag.plan { background: var(--mana); color: #04131c; }
+.tag.halt, .tag.tick_failed { background: #8c2338; color: #ffe3e8; } .tag.resume { background: #1f7a4c; color: #e3ffef; } .tag.redo { background: var(--edge); color: var(--ink); }
+
+/* action bar */
+.actions { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; background: rgba(15, 12, 29, .94); border-top: var(--px) solid var(--edge);
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); backdrop-filter: blur(6px); }
+.actions .in { max-width: 1240px; margin: 0 auto; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.actions .status { margin-right: auto; font-size: 12px; color: var(--muted); min-width: 0; }
+.actions .status b { color: var(--ink); font-weight: 500; }
+
+/* modal */
+.scrim { position: fixed; inset: 0; z-index: 20; background: rgba(6, 4, 14, .78); display: grid; place-items: center; padding: 16px; }
+.modal { width: min(560px, 100%); max-height: 90vh; overflow: auto; }
+.modal h3 { font-size: 24px; margin-bottom: 6px; }
+.modal .foot { display: flex; gap: 12px; justify-content: flex-end; margin-top: 18px; flex-wrap: wrap; }
+.field { display: grid; gap: 6px; margin-top: 14px; }
+.field input, .field select { background: #0c0918; border: 2px solid var(--edge); padding: 10px 12px; width: 100%; }
+.field .hint { font-size: 12px; color: var(--muted); }
+.ok { color: var(--hp); } .warn { color: var(--gold); }
+.plan-list { margin: 12px 0 0; padding-left: 18px; display: grid; gap: 8px; }
+.error { background: #3a1020; border: 2px solid var(--dmg); color: #ffd6de; padding: 10px 12px; margin-top: 12px; font-size: 13px; overflow-wrap: anywhere; }
+
+/* thinking overlay */
+.thinking { text-align: center; }
+.thinking .sprites { display: flex; justify-content: center; gap: 12px; margin: 18px 0; }
+.thinking .sprites img { width: 48px; height: 48px; image-rendering: pixelated; animation: hop .9s steps(2) infinite; }
+.thinking .sprites img:nth-child(2) { animation-delay: .15s; } .thinking .sprites img:nth-child(3) { animation-delay: .3s; }
+.thinking .sprites img:nth-child(4) { animation-delay: .45s; } .thinking .sprites img:nth-child(5) { animation-delay: .6s; }
+@keyframes hop { 50% { transform: translateY(-8px); } }
+
+.toast { position: fixed; z-index: 30; left: 50%; bottom: 96px; transform: translateX(-50%); max-width: calc(100% - 32px); }
+.toast .frame { padding: 10px 16px; border-color: var(--gold-deep); }
+
+@media (max-width: 960px) {
+  .stats { grid-template-columns: 1fr 1fr; }
+  .grid2 { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 560px) {
+  .stats { grid-template-columns: 1fr; }
+  .coin { grid-template-columns: 1fr; }
+  .entry { grid-template-columns: 104px 1fr; }
+  .entry .tag { justify-self: start; }
+  .entry .what { grid-column: 1 / -1; }
+  .hud h2 { font-size: 24px; }
+  .chart-box { height: 220px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+<div id="demo"></div>
+<main class="wrap" id="app" aria-live="polite"></main>
+<div id="actions"></div>
+<div id="layer"></div>
+
+<script>
+"use strict";
+/* ------------------------------------------------------------------ basics */
+const $ = (sel, root = document) => root.querySelector(sel);
+const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const money = (v, cents = false) => v == null ? "–" : (v < 0 ? "-$" : "$") + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: cents ? 2 : 0, maximumFractionDigits: cents ? 2 : 0 });
+const pct = (v, d = 1) => v == null ? "–" : (v > 0 ? "+" : "") + (v * 100).toFixed(d) + "%";
+const cls = (v) => v == null ? "flat" : v > 0.00005 ? "up" : v < -0.00005 ? "down" : "flat";
+const day = (s) => { if (!s) return "–"; const [y, m, d] = s.slice(0, 10).split("-").map(Number); return `${d} ${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][m - 1]} ${y}`; };
+
+const S = { demo: false, app: null, fund: null, ticker: null, poll: null };
+
+async function api(path, body) {
+  if (S.demo) return demoApi(path, body);
+  const opts = body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json", "X-AIHF": "1" }, body: JSON.stringify(body) };
+  const res = await fetch(path, opts);
+  const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data;
+}
+
+/* ------------------------------------------------------------ pixel sprites */
+const spriteCache = {};
+function hash(str) { let h = 2166136261; for (const c of str) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
+function sprite(id, kind) {
+  const key = id + kind;
+  if (spriteCache[key]) return spriteCache[key];
+  const n = 10, c = document.createElement("canvas"); c.width = c.height = n;
+  const g = c.getContext("2d");
+  let h = hash(id);
+  const rnd = () => { h ^= h << 13; h ^= h >>> 17; h ^= h << 5; return (h >>> 0) / 4294967296; };
+  const palettes = kind === "quant"
+    ? [["#5cc8ff", "#1d6f9c"], ["#7af0ff", "#2a7f8f"]]
+    : [["#ffc93c", "#b3741c"], ["#ff8fb1", "#a3355a"], ["#9b8cff", "#4f3fb0"], ["#47e08f", "#1f7a4c"], ["#ffa65c", "#a5531c"]];
+  const [main, dark] = palettes[Math.floor(rnd() * palettes.length)];
+  // face: a mirrored 10x10 creature with eyes on row 4
+  for (let y = 1; y < 9; y++) for (let x = 0; x < 5; x++) {
+    const edge = y === 1 || y === 8 || x === 0;
+    const on = rnd() > (edge ? 0.62 : 0.28);
+    if (!on) continue;
+    g.fillStyle = (y > 6 || x === 0) ? dark : main;
+    g.fillRect(x + 0, y, 1, 1); g.fillRect(n - 1 - x, y, 1, 1);
+  }
+  g.fillStyle = main; g.fillRect(3, 3, 4, 4); g.fillRect(2, 4, 6, 3);
+  g.fillStyle = "#0f0c1d"; g.fillRect(3, 4, 1, 2); g.fillRect(6, 4, 1, 2);
+  g.fillStyle = "#ffffff"; g.fillRect(3, 4, 1, 1); g.fillRect(6, 4, 1, 1);
+  g.fillStyle = dark; g.fillRect(4, 6, 2, 1);
+  return (spriteCache[key] = c.toDataURL());
+}
+
+/* ---------------------------------------------------------------- screens */
+function render() {
+  $("#demo").innerHTML = S.demo ? `<div class="demo-banner">DEMO · sample data, not a real fund · run "aihf web" on your computer to play</div>` : "";
+  if (S.fund) renderFund(); else renderHome();
+}
+
+function topbar(right = "") {
+  const m = S.app?.model;
+  return `<div class="topbar">
+    <div class="brand"><img class="logo" alt="" src="${sprite("arcade-logo", "ai")}">
+      <div><h1>AI HEDGE <span>FUND</span></h1><div class="sub">Paper trading · pretend money only</div></div></div>
+    <div class="chips">${right}
+      ${m ? `<span class="pill ${m.key_set ? "" : "warn"}" title="The AI model your analysts think with">AI: ${esc(m.label)}</span>` : ""}
+      <button class="btn small ghost" data-act="settings">Keys &amp; model</button></div></div>`;
+}
+
+function coinBanner() {
+  const a = S.app; if (!a) return "";
+  const missing = [];
+  if (!a.data_key_set) missing.push("Financial Datasets key (stock data)");
+  if (a.model.key_env && !a.model.key_set) missing.push(`${a.model.provider} key (for ${a.model.label})`);
+  if (!missing.length) return "";
+  return `<section class="frame coin"><div class="big disp">INSERT COIN</div>
+    <div>Add ${missing.map(esc).join(" and ")} before you can play a day. Keys stay on this computer.</div>
+    <button class="btn gold" data-act="settings">Add keys</button></section>`;
+}
+
+function renderHome() {
+  $("#actions").innerHTML = "";
+  const funds = S.app?.funds || [];
+  const slots = funds.map((f) => {
+    if (f.error) return `<div class="frame slot"><h3>${esc(f.name)}</h3><div class="error">${esc(f.error)}</div></div>`;
+    const hp = Math.max(0, Math.min(1, f.nav / f.capital / 2));
+    const lead = f.benchmark_return_pct == null ? null : f.return_pct - f.benchmark_return_pct;
+    const status = f.halted ? `<span class="pill down">Frozen</span>` : f.sessions ? `<span class="pill up">Active</span>` : `<span class="pill warn">New</span>`;
+    return `<button class="frame slot" data-open="${esc(f.name)}" aria-label="Open ${esc(f.name)}">
+      <div class="top"><span class="lv">LV ${f.sessions}</span>${status}</div>
+      <h3>${esc(f.name)}</h3>
+      <div class="meta">${esc(f.mandate)} · ${esc(f.universe.join(" "))} · trades ${esc(f.rebalance)}</div>
+      <div class="bar" title="Fund value vs starting money (the line marks the start)"><i class="${f.return_pct < 0 ? "bad" : ""}" style="width:${(hp * 100).toFixed(1)}%"></i><b style="left:50%"></b></div>
+      <div class="top"><span class="num" style="font-size:20px">${money(f.nav)}</span><span class="num ${cls(f.return_pct)}" style="font-size:18px">${pct(f.return_pct)}</span></div>
+      <div class="meta">${lead == null ? "Not played yet" : `${lead >= 0 ? "Ahead of" : "Behind"} ${esc(f.benchmark)} by ${(Math.abs(lead) * 100).toFixed(1)} pts`}${f.last_session ? ` · last day ${day(f.last_session)}` : ""}</div>
+    </button>`;
+  }).join("");
+  $("#app").innerHTML = `${topbar()}${coinBanner()}
+    <header style="display:flex;justify-content:space-between;align-items:baseline;margin:6px 0 14px;gap:12px;flex-wrap:wrap">
+      <h2 style="font-size:22px">Select a save file</h2>
+      <span class="label">${funds.length} fund${funds.length === 1 ? "" : "s"}</span></header>
+    <div class="slots">${slots}
+      <button class="frame slot new" data-act="new"><span class="plus">+</span><span class="disp" style="font-size:18px">New game</span>
+      <span class="meta">Pick a team of AI analysts, choose stocks, start with pretend money.</span></button></div>`;
+}
+
+function renderFund() {
+  const f = S.fund, spec = f.spec;
+  const lead = f.benchmark_return_pct == null ? null : f.return_pct - f.benchmark_return_pct;
+  const hp = Math.max(0, Math.min(1, f.nav / f.capital / 2));
+  const status = f.halted ? `<span class="pill down" title="${esc(f.halted)}">Frozen</span>` : `<span class="pill up">Active</span>`;
+  const universe = f.universe;
+  if (!S.ticker || !universe.includes(S.ticker)) S.ticker = universe[0];
+
+  $("#app").innerHTML = `${topbar(`<button class="btn small" data-act="home">◀ Saves</button>`)}${coinBanner()}
+    <div class="hud"><h2>${esc(f.name)}</h2><span class="lv" title="Trading days played">LV ${f.sessions}</span>${status}
+      <span class="muted" style="font-size:12px">${esc(spec.name)} · ${esc(universe.join(" "))} · trades ${esc(spec.rebalance)} · max ${(spec.max_position_pct * 100).toFixed(0)}% per stock</span></div>
+    ${f.halted ? `<div class="error" style="margin:-6px 0 18px">Frozen: ${esc(f.halted)}. Nothing trades until you resume.</div>` : ""}
+    <section class="stats">
+      <div class="frame stat"><div class="label">Fund HP · value</div><div class="value num">${money(f.nav)}</div>
+        <div class="bar"><i class="${f.return_pct < 0 ? "bad" : ""}" style="width:${(hp * 100).toFixed(1)}%"></i><b style="left:50%"></b></div>
+        <div class="note"><span class="${cls(f.return_pct)}">${pct(f.return_pct, 2)}</span> from ${money(f.capital)} start</div></div>
+      <div class="frame stat"><div class="label">Boss · ${esc(f.benchmark)}</div><div class="value num ${cls(f.benchmark_return_pct)}">${pct(f.benchmark_return_pct, 2)}</div>
+        <div class="bar"><i class="boss" style="width:${f.benchmark_return_pct == null ? 50 : Math.max(0, Math.min(100, 50 + f.benchmark_return_pct * 500)).toFixed(1)}%"></i><b style="left:50%"></b></div>
+        <div class="note">The S&amp;P 500 over the same days</div></div>
+      <div class="frame stat"><div class="label">Score</div><div class="value num ${cls(lead)}">${lead == null ? "–" : (lead >= 0 ? "+" : "") + (lead * 100).toFixed(2) + " pts"}</div>
+        <div class="note">${lead == null ? "Play a day to start scoring" : lead >= 0 ? "Beating the boss" : "Losing to the boss"}</div></div>
+      <div class="frame stat"><div class="label">Worst hit</div><div class="value num ${f.max_drawdown_pct < 0 ? "down" : "flat"}">${pct(f.max_drawdown_pct, 1)}</div>
+        <div class="note">Biggest fall from a high point</div></div>
+    </section>
+    <section class="grid2">
+      <div class="frame"><header><h3>Quest map</h3><div class="legend"><span><i style="background:var(--gold)"></i>${esc(f.name)}</span><span><i style="background:var(--mana)"></i>${esc(f.benchmark)}</span><span class="faint">both start at 100</span></div></header>
+        ${f.series.length >= 2 ? `<div class="chart-box"><canvas id="chart" role="img" aria-label="Fund value against ${esc(f.benchmark)}, indexed to 100"></canvas></div>`
+          : `<div class="empty">The map draws itself after two trading days.<br>Press <b>Play next day</b> to begin.</div>`}</div>
+      <div class="frame"><header><h3>Inventory</h3><span class="label">${f.holdings.length} held</span></header>
+        <div class="inv">${f.holdings.map((h) => `<div class="item"><div class="tk">${esc(h.ticker)}</div>
+            <div><div>${h.shares.toLocaleString()} sh${h.shares < 0 ? " (short)" : ""} @ ${money(h.mark, true)}</div><div class="mini"><i style="width:${Math.min(100, Math.abs(h.weight || 0) * 100).toFixed(1)}%"></i></div></div>
+            <div class="val"><div class="num">${money(h.value)}</div><div class="sub">${pct(h.weight)}</div></div></div>`).join("")}
+          <div class="item"><div class="tk cash">$</div><div><div>Cash</div><div class="sub">Not invested</div></div><div class="val num">${money(f.cash)}</div></div>
+        </div></div>
+    </section>
+    <section class="grid2">
+      <div class="frame">${partyPanel(f)}</div>
+      <div class="frame">${nextPanel(f)}</div>
+    </section>
+    <section class="frame"><header><h3>Battle log</h3><span class="label">newest first</span></header>${logPanel(f)}</section>`;
+
+  renderActions();
+  if (f.series.length >= 2) requestAnimationFrame(() => drawChart(f));
+}
+
+function partyPanel(f) {
+  const view = f.view;
+  const tabs = f.universe.map((t) => `<button class="tab" role="tab" aria-selected="${t === S.ticker}" data-ticker="${esc(t)}">${esc(t)}</button>`).join("");
+  const squads = f.spec.strategies.map((s) => {
+    const heroes = s.analysts.map((a) => {
+      const sig = view?.signals.find((x) => x.analyst === a.id && x.ticker === S.ticker && x.strategy === s.name);
+      const stance = sig?.stance;
+      const bars = sig && stance !== "abstain" ? Math.round((sig.confidence || 0) / 10) : 0;
+      const words = !sig ? "No view yet. Play a day and I'll report in."
+        : stance === "abstain" ? `zzz… no view: ${sig.reasoning.replace(/^abstained:\s*/, "")}`
+        : sig.reasoning || (a.kind === "quant" ? "Numbers only. No commentary." : "");
+      return `<article class="hero">
+        <img alt="" src="${sprite(a.id, a.kind)}">
+        <div style="min-width:0"><div class="who">${esc(a.name)}</div><div class="cls">${a.kind === "quant" ? "Quant · no AI" : "AI analyst"}${a.motto ? " · " + esc(a.motto) : ""}</div>
+          <div class="row">${sig ? `<span class="pill stance-${esc(stance)}">${esc(stance === "abstain" ? "no view" : stance)}</span>` : `<span class="pill faint">waiting</span>`}
+            <span class="power" title="Confidence ${sig?.confidence ?? 0} of 100">${Array.from({ length: 10 }, (_, i) => `<i class="${i < bars ? "on" : ""}"></i>`).join("")}</span></div></div>
+        <div class="bubble ${!sig || stance === "abstain" ? "quiet" : ""}">${esc(words)}</div></article>`;
+    }).join("");
+    return `<div class="squad"><div class="label"><span>Squad · ${esc(s.name)}</span><span class="faint">${esc(s.mode.replace("_", " "))} · ${Math.round(s.weight * 100) / 100}× capital share</span></div><div class="party">${heroes}</div></div>`;
+  }).join("");
+  const when = view ? `${view.status === "pending" ? "Views from" : "Last views from"} ${day(view.as_of)}${view.status === "pending" ? " · executes at the next close" : ""}` : "No views yet";
+  return `<header><h3>The party</h3><span class="label">${esc(when)}</span></header><div class="tabs" role="tablist">${tabs}</div>${squads}`;
+}
+
+function nextPanel(f) {
+  const plan = f.pending || (f.view && f.view.status === "executed" ? { as_of: f.view.as_of, targets: f.view.targets, clamps: f.view.clamps, done: true } : null);
+  if (!plan) return `<header><h3>Next move</h3></header><div class="empty">No plan yet. The team decides on its first day.</div>`;
+  const rows = Object.entries(plan.targets).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).map(([t, w]) => {
+    const width = Math.min(50, Math.abs(w) * 50);
+    const style = w >= 0 ? `left:50%;width:${width}%` : `right:50%;width:${width}%`;
+    return `<div class="target"><span class="tk">${esc(t)}</span><div class="split"><i class="${w < 0 ? "short" : ""}" style="${style}"></i></div><span class="num ${cls(w)}" style="text-align:right">${pct(w, 0)}</span></div>`;
+  }).join("") || `<div class="muted">Stay in cash.</div>`;
+  const trims = (plan.clamps || []).map((c) => `<div class="trim">Risk officer trimmed ${esc(c.ticker || "the whole book")}: ${pct(c.before, 0)} → ${pct(c.after, 0)}</div>`).join("");
+  return `<header><h3>Next move</h3><span class="label">${plan.done ? "last plan, done" : "waiting to execute"}</span></header>
+    <p class="muted" style="margin:0 0 12px;font-size:12px">${plan.done ? `The plan from ${day(plan.as_of)}, already traded.` : `Target share of the fund for each stock, decided ${day(plan.as_of)}. It trades at the next day's closing price.`} Right of the line is owning, left is betting against.</p>
+    <div class="targets">${rows}</div>${trims}`;
+}
+
+function logPanel(f) {
+  if (!f.log.length) return `<div class="empty">Nothing has happened yet.</div>`;
+  const line = (e) => {
+    switch (e.kind) {
+      case "trade": return [e.side, e.side === "buy" ? "Buy" : "Sell", `${e.side === "buy" ? "Bought" : "Sold"} ${e.quantity.toLocaleString()} ${esc(e.ticker)} @ ${money(e.price, true)} · ${money(e.value)}`];
+      case "clamp": return ["risk", "Risk", `Capped ${esc(e.ticker || "total exposure")} from ${pct(e.before, 0)} to ${pct(e.after, 0)}`];
+      case "decision": return ["plan", "Plan", `New plan: ${Object.entries(e.targets).map(([t, w]) => `${esc(t)} ${pct(w, 0)}`).join(", ") || "all cash"}`];
+      case "halt": return ["halt", "Frozen", esc(e.detail || "halted")];
+      case "resume": return ["resume", "Resume", "Trading resumed"];
+      case "tick_failed": return ["tick_failed", "Error", esc(e.detail)];
+      case "redo": return ["redo", "Replay", `Replayed ${esc(e.detail)}`];
+      default: return ["redo", esc(e.kind), esc(e.detail || "")];
+    }
+  };
+  return `<div class="log">${f.log.map((e) => { const [k, tag, what] = line(e); return `<div class="entry"><span class="when">${day(e.at)}</span><span class="tag ${k}">${tag}</span><span class="what">${what}</span></div>`; }).join("")}</div>`;
+}
+
+function renderActions() {
+  const f = S.fund, running = f.run?.state === "running";
+  $("#actions").innerHTML = `<div class="actions"><div class="in">
+    <div class="status">${running ? "<b>Round in progress…</b>" : f.last_session ? `Last day played: <b>${day(f.last_session)}</b>` : "<b>Ready for day one.</b>"}
+      <span class="faint"> · each Play runs one finished US trading day</span></div>
+    ${f.halted ? `<button class="btn green" data-act="resume">▶ Resume</button>` : `<button class="btn red" data-act="halt" ${running ? "disabled" : ""}>■ Freeze</button>`}
+    <button class="btn gold" data-act="play" ${running || f.halted ? "disabled" : ""}>▶ Play next day</button></div></div>`;
+}
+
+/* ------------------------------------------------------------------ chart */
+function drawChart(f) {
+  const canvas = $("#chart"); if (!canvas) return;
+  const box = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  canvas.width = box.width * dpr; canvas.height = box.height * dpr;
+  const g = canvas.getContext("2d"); g.scale(dpr, dpr);
+  const css = getComputedStyle(document.documentElement);
+  const C = (n) => css.getPropertyValue(n).trim();
+  const fund = f.series.map((p) => p.nav / f.capital * 100);
+  const bench = f.series.map((p) => p.benchmark_close / f.series[0].benchmark_close * 100);
+  const all = fund.concat(bench);
+  let lo = Math.min(...all), hi = Math.max(...all);
+  const step = niceStep((hi - lo) / 4 || 1);
+  lo = Math.floor(lo / step) * step; hi = Math.ceil(hi / step) * step; if (hi === lo) hi = lo + step;
+  const L = 44, R = 14, T = 12, B = 26, W = box.width - L - R, H = box.height - T - B;
+  const X = (i) => L + (f.series.length === 1 ? W / 2 : (i / (f.series.length - 1)) * W);
+  const Y = (v) => T + (1 - (v - lo) / (hi - lo)) * H;
+  g.font = `12px ${C("--display")}`; g.textBaseline = "middle";
+  for (let v = lo; v <= hi + 1e-9; v += step) {
+    g.strokeStyle = v === 100 ? C("--faint") : "#2b2450"; g.lineWidth = v === 100 ? 2 : 1;
+    g.setLineDash(v === 100 ? [4, 4] : []);
+    g.beginPath(); g.moveTo(L, Math.round(Y(v)) + .5); g.lineTo(L + W, Math.round(Y(v)) + .5); g.stroke();
+    g.fillStyle = C("--muted"); g.textAlign = "right"; g.fillText(v.toFixed(step < 1 ? 1 : 0), L - 8, Y(v));
+  }
+  g.setLineDash([]);
+  g.fillStyle = C("--muted"); g.textBaseline = "alphabetic";
+  g.textAlign = "left"; g.fillText(day(f.series[0].session), L, box.height - 6);
+  g.textAlign = "right"; g.fillText(day(f.series.at(-1).session), L + W, box.height - 6);
+  const line = (vals, color, width, dash) => {
+    g.strokeStyle = color; g.lineWidth = width; g.setLineDash(dash); g.lineJoin = "miter";
+    g.beginPath(); vals.forEach((v, i) => {
+      const x = X(i), y = Y(v);
+      if (i === 0) g.moveTo(x, y); else { g.lineTo(x, Y(vals[i - 1])); g.lineTo(x, y); } // stepped, like a pixel path
+    }); g.stroke(); g.setLineDash([]);
+  };
+  // area under the fund line
+  g.fillStyle = "rgba(255, 201, 60, .08)"; g.beginPath(); g.moveTo(X(0), Y(lo));
+  fund.forEach((v, i) => { if (i) g.lineTo(X(i), Y(fund[i - 1])); g.lineTo(X(i), Y(v)); }); g.lineTo(X(fund.length - 1), Y(lo)); g.fill();
+  line(bench, C("--mana"), 2, [6, 4]);
+  line(fund, C("--gold"), 3, []);
+  f.series.forEach((p, i) => { if (!p.traded) return; g.fillStyle = C("--ink"); const x = X(i), y = Y(fund[i]); g.fillRect(x - 3, y - 3, 6, 6); });
+  const end = (vals, color) => { const x = X(vals.length - 1), y = Y(vals.at(-1)); g.fillStyle = color; g.fillRect(x - 5, y - 5, 10, 10); };
+  end(bench, C("--mana")); end(fund, C("--gold"));
+}
+function niceStep(raw) { const p = Math.pow(10, Math.floor(Math.log10(raw))); const n = raw / p; return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * p; }
+
+/* ---------------------------------------------------------------- modals */
+function modal(html) { $("#layer").innerHTML = `<div class="scrim" data-scrim><div class="frame modal" role="dialog" aria-modal="true">${html}</div></div>`; $("#layer").querySelector("input,select,button.gold")?.focus(); }
+function closeModal() { $("#layer").innerHTML = ""; }
+function toast(text) {
+  const el = document.createElement("div"); el.className = "toast"; el.innerHTML = `<div class="frame">${esc(text)}</div>`;
+  document.body.appendChild(el); setTimeout(() => el.remove(), 4200);
+}
+
+function settingsModal(error = "") {
+  const a = S.app, m = a.model;
+  const byProvider = {};
+  a.models.forEach((x) => (byProvider[x.provider || "Other"] ||= []).push(x));
+  modal(`<h3>Keys &amp; model</h3><p class="muted" style="margin:0">Keys are saved on this computer only, in your .hedge-fund folder. They are never shown again here.</p>
+    <form id="keys-form">
+      <div class="field"><label class="label" for="fd-key">Financial Datasets key · stock data</label>
+        <input id="fd-key" type="password" autocomplete="off" placeholder="${a.data_key_set ? "Saved ✓ (paste to replace)" : "Paste your key"}">
+        <span class="hint ${a.data_key_set ? "ok" : "warn"}">${a.data_key_set ? "Saved" : "Needed to play. Get one at financialdatasets.ai"}</span></div>
+      <div class="field"><label class="label" for="model">AI model · what your analysts think with</label>
+        <select id="model">${Object.entries(byProvider).map(([p, ms]) => `<optgroup label="${esc(p)}">${ms.map((x) => `<option value="${esc(x.id)}" ${x.id === m.id ? "selected" : ""}>${esc(x.label)}${x.key_set ? " ✓" : ""}</option>`).join("")}</optgroup>`).join("")}</select>
+        <span class="hint">Cheaper models cost cents per day played; top models can cost dollars. DeepSeek Flash is a cheap start.</span></div>
+      <div class="field" id="ai-key-field"></div>
+      ${error ? `<div class="error">${esc(error)}</div>` : ""}
+      <div class="foot"><button type="button" class="btn ghost" data-act="close">Close</button><button class="btn gold" type="submit">Save</button></div>
+    </form>`);
+  const sync = () => {
+    const pick = a.models.find((x) => x.id === $("#model").value) || m;
+    $("#ai-key-field").innerHTML = pick.key_env ? `<label class="label" for="ai-key">${esc(pick.provider)} key</label>
+      <input id="ai-key" type="password" autocomplete="off" data-env="${esc(pick.key_env)}" placeholder="${pick.key_set ? "Saved ✓ (paste to replace)" : "Paste your key"}">
+      <span class="hint ${pick.key_set ? "ok" : "warn"}">${pick.key_set ? "Saved" : `Needed for ${esc(pick.label)}`}</span>` : "";
+  };
+  $("#model").addEventListener("change", sync); sync();
+  $("#keys-form").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    try {
+      const fd = $("#fd-key").value.trim(), ai = $("#ai-key"), model = $("#model").value;
+      if (fd) S.app = await api("/api/keys", { env_var: "FINANCIAL_DATASETS_API_KEY", value: fd });
+      if (ai && ai.value.trim()) S.app = await api("/api/keys", { env_var: ai.dataset.env, value: ai.value.trim() });
+      if (model !== S.app.model.id) S.app = await api("/api/model", { id: model });
+      closeModal(); toast("Saved"); if (S.fund) await openFund(S.fund.name); else render();
+    } catch (e) { settingsModal(e.message); }
+  });
+}
+
+function newGameModal(error = "", values = {}) {
+  const ms = (S.app.mandates || []).filter((x) => !x.error);
+  if (!ms.length) return modal(`<h3>New game</h3><div class="error">No fund plans found in your .hedge-fund/mandates folder.</div><div class="foot"><button class="btn" data-act="close">Close</button></div>`);
+  const describe = (m) => m.strategies.map((s) => `${s.name}: ${s.analysts.map((a) => a.name).join(", ")}`).join(" · ");
+  modal(`<h3>New game</h3><p class="muted" style="margin:0">Pretend money only. You can freeze or delete it any time.</p>
+    <form id="new-form">
+      <div class="field"><label class="label" for="g-name">Save name</label><input id="g-name" required pattern="[A-Za-z0-9][A-Za-z0-9._-]*" maxlength="40" placeholder="e.g. my-first-fund" value="${esc(values.name || "")}"><span class="hint">Letters, numbers, dashes. No spaces.</span></div>
+      <div class="field"><label class="label" for="g-team">Team</label><select id="g-team">${ms.map((m) => `<option value="${esc(m.file)}" ${values.mandate === m.file ? "selected" : ""}>${esc(m.name)}</option>`).join("")}</select><span class="hint" id="g-team-hint"></span></div>
+      <div class="field"><label class="label" for="g-stocks">Stocks to watch</label><input id="g-stocks" required placeholder="AAPL, MSFT, NVDA" value="${esc(values.universe || "")}"><span class="hint">US stock tickers, separated by commas. Start with 3 to keep data costs low.</span></div>
+      <div class="field"><label class="label" for="g-cap">Starting money (pretend)</label><input id="g-cap" inputmode="decimal" value="${esc(values.capital || "")}"></div>
+      ${error ? `<div class="error">${esc(error)}</div>` : ""}
+      <div class="foot"><button type="button" class="btn ghost" data-act="close">Cancel</button><button class="btn gold" type="submit">Start game</button></div></form>`);
+  const sync = () => { const m = ms.find((x) => x.file === $("#g-team").value); $("#g-team-hint").textContent = `${describe(m)} · trades ${m.rebalance}`; if (!$("#g-cap").value || $("#g-cap").dataset.auto) { $("#g-cap").value = m.capital; $("#g-cap").dataset.auto = "1"; } };
+  $("#g-cap").addEventListener("input", () => delete $("#g-cap").dataset.auto);
+  $("#g-team").addEventListener("change", sync); sync();
+  $("#new-form").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const values = { name: $("#g-name").value.trim(), mandate: $("#g-team").value, universe: $("#g-stocks").value, capital: $("#g-cap").value };
+    try { await api("/api/funds", values); closeModal(); await refreshApp(); await openFund(values.name); }
+    catch (e) { newGameModal(e.message, values); }
+  });
+}
+
+async function playModal() {
+  modal(`<h3>Checking the market…</h3><p class="muted">Finding the next finished trading day.</p>`);
+  let plan;
+  try { plan = await api(`/api/funds/${encodeURIComponent(S.fund.name)}/plan`); }
+  catch (e) { return modal(`<h3>Can't play yet</h3><div class="error">${esc(e.message)}</div><div class="foot"><button class="btn ghost" data-act="close">Close</button>${/key/i.test(e.message) ? `<button class="btn gold" data-act="settings">Add keys</button>` : ""}</div>`); }
+  if (!plan.due) {
+    return modal(`<h3>No new day yet</h3><p>The last finished US trading day (${day(plan.last_session)}) is already played. A new one finishes each weekday after 2pm Gold Coast time (3pm from Nov to Mar).</p>
+      ${plan.can_redo ? `<p class="muted">You can replay ${day(plan.last_session)}: the analysts think again and the old result is kept in the history.</p>` : ""}
+      <div class="foot"><button class="btn ghost" data-act="close">OK</button>${plan.can_redo ? `<button class="btn" data-act="redo">↻ Replay that day</button>` : ""}</div>`);
+  }
+  const steps = [];
+  if (plan.executes) steps.push(`Trade the plan from ${day(plan.executes.as_of)} at the ${day(plan.due)} closing price: ${Object.entries(plan.executes.targets).map(([t, w]) => `${esc(t)} ${pct(w, 0)}`).join(", ") || "all cash"}.`);
+  else steps.push(`Value the fund at the ${day(plan.due)} close. No trades are waiting.`);
+  steps.push(plan.decides ? `Then the analysts study every stock and make a new plan (${plan.last_session ? `first day of the ${plan.rebalance === "weekly" ? "week" : plan.rebalance === "monthly" ? "month" : "day"}` : "the first decision"}). This calls the AI, so it costs a little and can take a few minutes.` : "No new plan today: the team only re-plans at the start of each " + (plan.rebalance === "weekly" ? "week." : "month."));
+  modal(`<h3>Play ${day(plan.due)}?</h3><ol class="plan-list">${steps.map((s) => `<li>${s}</li>`).join("")}</ol>
+    <p class="faint" style="font-size:12px">Pretend money only. Nothing real is bought or sold.</p>
+    <div class="foot"><button class="btn ghost" data-act="close">Cancel</button><button class="btn gold" data-act="run">▶ Play</button></div>`);
+}
+
+async function startRun(mode) {
+  const name = S.fund.name;
+  try { await api(`/api/funds/${encodeURIComponent(name)}/run`, { mode }); }
+  catch (e) { return modal(`<h3>Couldn't start</h3><div class="error">${esc(e.message)}</div><div class="foot"><button class="btn ghost" data-act="close">Close</button></div>`); }
+  const started = Date.now();
+  const heroes = S.fund.spec.strategies.flatMap((s) => s.analysts).slice(0, 5);
+  const show = () => modal(`<div class="thinking"><h3>Round in progress</h3>
+    <div class="sprites">${heroes.map((a) => `<img alt="" src="${sprite(a.id, a.kind)}">`).join("")}</div>
+    <p>The analysts are studying ${esc(S.fund.universe.join(", "))}…</p>
+    <p class="muted num" style="font-size:20px">${Math.floor((Date.now() - started) / 1000)}s</p>
+    <p class="faint" style="font-size:12px">You can leave this open. Closing the browser doesn't stop the round; closing the terminal window does.</p></div>`);
+  show();
+  clearInterval(S.poll);
+  S.poll = setInterval(async () => {
+    let job; try { job = await api(`/api/funds/${encodeURIComponent(name)}/run`); } catch { return; }
+    if (job.state === "running") return show();
+    clearInterval(S.poll); closeModal(); await openFund(name);
+    if (job.state === "done") toast(`Day ${day(job.session)} played · fund ${money(job.nav)}${job.decided ? " · new plan made" : ""}`);
+    else modal(`<h3>${job.state === "nothing_due" ? "No new day yet" : "Round stopped"}</h3><div class="${job.state === "nothing_due" ? "muted" : "error"}">${esc(job.message)}</div>
+      ${job.state === "failed" ? `<p class="muted">The fund froze itself so nothing trades on a broken book. Fix the problem (often a key or the internet), then Resume.</p>` : ""}
+      <div class="foot"><button class="btn ghost" data-act="close">Close</button></div>`);
+  }, 2000);
+}
+
+function haltModal() {
+  modal(`<h3>Freeze ${esc(S.fund.name)}?</h3><p class="muted">The kill switch. Nothing trades until you resume. Holdings stay as they are.</p>
+    <form id="halt-form"><div class="field"><label class="label" for="h-reason">Reason (for your log)</label><input id="h-reason" maxlength="200" placeholder="e.g. taking a break"></div>
+    <div class="foot"><button type="button" class="btn ghost" data-act="close">Cancel</button><button class="btn red" type="submit">■ Freeze</button></div></form>`);
+  $("#halt-form").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    try { await api(`/api/funds/${encodeURIComponent(S.fund.name)}/halt`, { reason: $("#h-reason").value }); closeModal(); await openFund(S.fund.name); toast("Frozen"); }
+    catch (e) { toast(e.message); }
+  });
+}
+
+/* ------------------------------------------------------------- navigation */
+async function refreshApp() { S.app = await api("/api/state"); }
+async function openFund(name) { S.fund = await api(`/api/funds/${encodeURIComponent(name)}`); render(); window.scrollTo({ top: 0 }); }
+
+document.addEventListener("click", async (ev) => {
+  const t = ev.target.closest("[data-act],[data-open],[data-ticker],[data-scrim]");
+  if (!t) return;
+  if (t.dataset.scrim !== undefined && ev.target === t) return closeModal();
+  if (t.dataset.open) return openFund(t.dataset.open).catch((e) => toast(e.message));
+  if (t.dataset.ticker) { S.ticker = t.dataset.ticker; return renderFund(); }
+  switch (t.dataset.act) {
+    case "home": S.fund = null; await refreshApp().catch(() => {}); return render();
+    case "settings": return settingsModal();
+    case "new": return newGameModal();
+    case "close": return closeModal();
+    case "play": return playModal();
+    case "run": return startRun("run");
+    case "redo": return startRun("redo");
+    case "halt": return haltModal();
+    case "resume":
+      try { await api(`/api/funds/${encodeURIComponent(S.fund.name)}/resume`, {}); await openFund(S.fund.name); toast("Resumed"); } catch (e) { toast(e.message); }
+  }
+});
+document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && $("#layer").innerHTML) closeModal(); });
+let resizeTimer; window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => S.fund && S.fund.series.length >= 2 && drawChart(S.fund), 120); });
+
+/* ------------------------------------------------------------------ demo */
+// Sample data for the preview page only: invented numbers, clearly bannered.
+function demoData() {
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const days = []; const d = new Date(Date.UTC(2026, 7, 31));
+  while (days.length < 34) { d.setUTCDate(d.getUTCDate() + 1); if (d.getUTCDay() % 6) days.push(d.toISOString().slice(0, 10)); }
+  const cap = 100000; let nav = cap, spy = 655;
+  const series = days.map((s, i) => { nav *= 1 + (rnd() - 0.46) * 0.014; spy *= 1 + (rnd() - 0.48) * 0.011; return { session: s, nav: Math.round(nav * 100) / 100, benchmark_close: Math.round(spy * 100) / 100, rebalance: new Date(s).getUTCDay() === 1 || i === 0, traded: new Date(s).getUTCDay() === 2 }; });
+  const last = series.at(-1);
+  const spec = { name: "example-fund", capital: cap, rebalance: "weekly", benchmark: "SPY", max_position_pct: 0.25, strategies: [
+    { name: "deep-value", mode: "long_only", weight: 0.6, analysts: [
+      { id: "graham", name: "Benjamin Graham", motto: "Margin of safety", kind: "ai" },
+      { id: "buffett", name: "Warren Buffett", motto: "Quality at a fair price", kind: "ai" },
+      { id: "munger", name: "Charlie Munger", motto: "Great businesses, few mistakes", kind: "ai" }] },
+    { name: "earnings-drift", mode: "long_short", weight: 0.4, analysts: [
+      { id: "pead", name: "Earnings Drift", motto: "Maths only: drift after earnings surprises", kind: "quant" }] }] };
+  const V = (analyst, strategy, ticker, stance, confidence, reasoning) => ({ analyst, strategy, ticker, stance, confidence, value: (stance === "bullish" ? 1 : stance === "bearish" ? -1 : 0) * confidence / 100, reasoning });
+  const signals = [
+    V("graham", "deep-value", "AAPL", "neutral", 55, "Earnings are steady, but the price sits well above a conservative value estimate. No margin of safety today."),
+    V("buffett", "deep-value", "AAPL", "bullish", 72, "High returns on equity and dependable free cash flow. The price is full, but fair for a business this durable."),
+    V("munger", "deep-value", "AAPL", "bullish", 64, "Pricing power and a loyal customer base. Not cheap, though quality like this rarely is."),
+    V("pead", "earnings-drift", "AAPL", "bullish", 31, "Last quarter beat estimates by 4%. Prices often keep drifting the same way for weeks after a beat."),
+    V("graham", "deep-value", "MSFT", "bearish", 40, "Trades at over 30 times earnings. Too much optimism priced in for a defensive investor."),
+    V("buffett", "deep-value", "MSFT", "bullish", 78, "Recurring revenue, wide margins and little debt. A wonderful business at a reasonable price."),
+    V("munger", "deep-value", "MSFT", "bullish", 70, "Hard-to-replace products and sensible capital allocation. Easy to own for a decade."),
+    V("pead", "earnings-drift", "MSFT", "bullish", 22, "Small positive surprise last quarter. A weak drift signal."),
+    V("graham", "deep-value", "NVDA", "bearish", 68, "Valuation demands years of perfect growth. Nothing here protects the downside."),
+    V("buffett", "deep-value", "NVDA", "neutral", 45, "Remarkable margins, but hard to judge where the industry will be in ten years."),
+    V("munger", "deep-value", "NVDA", "abstain", 0, "abstained: insufficient data: fewer than 3 years of comparable filings"),
+    V("pead", "earnings-drift", "NVDA", "bearish", 18, "Guidance disappointed after the last report. A mild downward drift signal."),
+  ];
+  const targets = { MSFT: 0.25, AAPL: 0.21, NVDA: -0.04 };
+  const marks = { AAPL: 248.12, MSFT: 512.40, NVDA: 186.75 };
+  const shares = { MSFT: 48, AAPL: 85, NVDA: -21 };
+  const holdings = Object.entries(shares).map(([t, s]) => ({ ticker: t, shares: s, mark: marks[t], value: s * marks[t], weight: s * marks[t] / last.nav })).sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
+  const cash = last.nav - holdings.reduce((a, h) => a + h.value, 0);
+  const log = [];
+  series.forEach((p, i) => {
+    if (p.traded) { log.push({ at: p.session, kind: "trade", side: "buy", ticker: "MSFT", quantity: 6, price: 505 + i, value: 6 * (505 + i) }); log.push({ at: p.session, kind: "trade", side: "sell", ticker: "NVDA", quantity: 4, price: 180 + i / 3, value: 4 * (180 + i / 3) }); }
+    if (p.rebalance) log.push({ at: p.session, kind: "decision", targets });
+    if (i === 12) log.push({ at: p.session, kind: "clamp", ticker: "MSFT", limit: "max_position_pct", before: 0.31, after: 0.25 });
+  });
+  log.push({ at: days[20], kind: "halt", detail: "checking the analysts after a rough day" }, { at: days[21], kind: "resume" });
+  log.sort((a, b) => (a.at < b.at ? 1 : -1));
+  const fund = { name: "demo-fund", mandate: spec.name, universe: ["AAPL", "MSFT", "NVDA"], capital: cap, rebalance: "weekly", benchmark: "SPY", created: days[0],
+    sessions: series.length, last_session: last.session, nav: last.nav, return_pct: last.nav / cap - 1, benchmark_return_pct: last.benchmark_close / series[0].benchmark_close - 1,
+    halted: null, spec, llm_model: "deepseek-flash", series, cash, holdings, max_drawdown_pct: series.reduce((acc, p) => { acc.peak = Math.max(acc.peak, p.nav); acc.worst = Math.min(acc.worst, p.nav / acc.peak - 1); return acc; }, { peak: cap, worst: 0 }).worst,
+    view: { as_of: last.session, status: "pending", signals, targets, clamps: [{ ticker: "MSFT", limit: "max_position_pct", before: 0.29, after: 0.25 }] },
+    pending: { as_of: last.session, targets, clamps: [{ ticker: "MSFT", limit: "max_position_pct", before: 0.29, after: 0.25 }] }, log, run: { state: "idle" } };
+  const summary = (({ spec, series, holdings, view, log, run, ...rest }) => rest)(fund);
+  const state = { data_key_set: true, model: { id: "deepseek-flash", label: "DeepSeek V4.1 Flash", provider: "DeepSeek", key_env: "DEEPSEEK_API_KEY", key_set: true },
+    models: [{ id: "deepseek-flash", label: "DeepSeek V4.1 Flash", provider: "DeepSeek", key_env: "DEEPSEEK_API_KEY", key_set: true }],
+    mandates: [{ file: "example", ...spec }], funds: [summary, { ...summary, name: "tech-trio", universe: ["GOOGL", "AMZN", "META"], sessions: 0, last_session: null, nav: cap, return_pct: 0, benchmark_return_pct: null, pending: false }] };
+  return { state, fund };
+}
+let DEMO;
+async function demoApi(path, body) {
+  DEMO ||= demoData();
+  if (path === "/api/state") return DEMO.state;
+  if (body !== undefined) throw new Error("Demo mode: this is a preview with sample data. Run \"aihf web\" on your computer to play for real.");
+  if (path.endsWith("/plan")) throw new Error("Demo mode: playing a day needs the app running on your computer (aihf web).");
+  const name = decodeURIComponent(path.split("/")[3]);
+  if (name === "demo-fund") return DEMO.fund;
+  const s = DEMO.state.funds.find((f) => f.name === name);
+  return { ...s, spec: DEMO.fund.spec, series: [], cash: s.capital, holdings: [], view: null, pending: null, log: [], max_drawdown_pct: 0, run: { state: "idle" } };
+}
+
+/* ------------------------------------------------------------------ boot */
+(async function boot() {
+  const local = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+  try { if (!local) throw new Error("preview"); await refreshApp(); }
+  catch { S.demo = true; await refreshApp(); }
+  render();
+  if (S.demo && !S.fund) await openFund("demo-fund");
+})();
+</script>
+</body>
+</html>
