@@ -19,6 +19,7 @@ from hedge_fund.paper import Ledger, list_deployed, load_deployed
 from hedge_fund.pipeline.models import DecisionRecord, StrategyRecord
 from hedge_fund.pipeline.session import SessionRecord
 from hedge_fund.signals import ALPHA_MODEL_REGISTRY, LLMAgent
+from hedge_fund.web import game
 
 DATA_KEY = "FINANCIAL_DATASETS_API_KEY"
 MODEL_VAR = "HEDGE_FUND_LLM_MODEL"
@@ -65,8 +66,14 @@ def app_state(paper_root: Path, mandates_root: Path) -> dict:
         "model": current_model(),
         "models": [_model_view(mid, label, provider) for label, mid, provider in load_api_models()],
         "mandates": mandates(mandates_root),
-        "funds": [fund_summary(d) for d in list_deployed(paper_root)],
+        **_funds_and_board(paper_root),
     }
+
+
+def _funds_and_board(paper_root: Path) -> dict:
+    funds = [fund_summary(d) for d in list_deployed(paper_root)]
+    ranked = game.leaderboard(funds)  # sets each fund's "place" in place
+    return {"funds": funds, "leaderboard": [f["name"] for f in ranked]}
 
 
 def current_model() -> dict:
@@ -141,14 +148,17 @@ def fund_summary(directory: Path) -> dict:
     try:
         deployed = load_deployed(directory)
         ledger = Ledger(directory)
-        sessions = ledger.sessions()
-        first = ledger.read(sessions[0]) if sessions else None
-        latest = ledger.read(sessions[-1]) if sessions else None
+        records = ledger.records()
+        first = records[0] if records else None
+        latest = records[-1] if records else None
         halted = ledger.halted()
+        play = game.progress(records, ledger.events(), deployed.spec.capital)
     except Exception as exc:  # one broken fund must not hide the others
         return {"name": directory.name, "error": f"{type(exc).__name__}: {exc}"}
     capital = deployed.spec.capital
     nav = latest.nav if latest else capital
+    bench = _bench_return(first, latest)
+    ret = nav / capital - 1
     return {
         "name": deployed.name,
         "mandate": deployed.spec.name,
@@ -157,13 +167,16 @@ def fund_summary(directory: Path) -> dict:
         "rebalance": deployed.spec.rebalance,
         "benchmark": deployed.spec.benchmark,
         "created": deployed.created,
-        "sessions": len(sessions),
+        "sessions": len(records),
         "last_session": latest.session if latest else None,
         "nav": nav,
-        "return_pct": nav / capital - 1,
-        "benchmark_return_pct": _bench_return(first, latest),
+        "return_pct": ret,
+        "benchmark_return_pct": bench,
+        "lead": None if bench is None else ret - bench,
+        "max_drawdown_pct": _max_drawdown([capital, *(r.nav for r in records)]),
         "halted": halted,
         "pending": latest is not None and latest.decision is not None,
+        "game": play,
     }
 
 

@@ -205,6 +205,67 @@ h1, h2, h3, .disp { font-family: var(--display); font-weight: 600; letter-spacin
 .toast { position: fixed; z-index: 30; left: 50%; bottom: 96px; transform: translateX(-50%); max-width: calc(100% - 32px); }
 .toast .frame { padding: 10px 16px; border-color: var(--gold-deep); }
 
+/* xp + levels */
+.xp { display: flex; align-items: center; gap: 12px; margin: -6px 0 18px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+.xp .bar { flex: 1 1 200px; max-width: 420px; height: 12px; }
+.xp .bar > i { background-color: var(--gold); transition: width .8s steps(12); }
+.rank { font-family: var(--display); color: var(--gold); letter-spacing: .1em; text-transform: uppercase; font-size: 13px; }
+.slot .xpline { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); }
+.slot .xpline .bar { flex: 1; height: 8px; border-width: 1px; }
+.slot .xpline .bar > i { background-color: var(--gold); }
+
+/* high scores */
+.board { margin-bottom: 22px; }
+.board .title { font-size: 22px; color: var(--gold); text-shadow: 3px 3px 0 #5a3d00; }
+.board table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.board th { text-align: left; font-family: var(--display); font-weight: 500; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); padding: 6px 8px; border-bottom: 2px solid var(--edge); white-space: nowrap; }
+.board td { padding: 10px 8px; border-bottom: 2px dashed #2b2450; vertical-align: middle; }
+.board tr[data-open] { cursor: pointer; }
+.board tr[data-open]:hover td, .board tr[data-open]:focus-visible td { background: var(--panel-2); }
+.board tr[data-open]:focus-visible { outline: 3px solid var(--mana); outline-offset: -3px; }
+.board .r { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.board .fund { font-family: var(--display); font-size: 16px; overflow-wrap: break-word; }
+.board .who { font-size: 11px; color: var(--muted); }
+.place { font-family: var(--display); font-size: 18px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.place.p1 { color: var(--gold); } .place.p2 { color: #dcdcef; } .place.p3 { color: #e0915a; }
+.place.p1::after { content: " ♛"; animation: blink 1.6s steps(2) infinite; }
+.early { font-family: var(--display); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); border: 1px solid var(--faint); padding: 0 4px; margin-left: 6px; white-space: nowrap; }
+.board .foot-note { font-size: 12px; color: var(--faint); margin: 10px 0 0; }
+
+/* trophy room */
+.trophies { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.trophy { background: #140f27; border: 2px solid var(--edge); padding: 10px; display: grid; grid-template-columns: 44px 1fr; gap: 10px; align-items: center; min-width: 0; }
+.trophy img { width: 44px; height: 44px; image-rendering: pixelated; }
+.trophy.got { border-color: var(--gold-deep); background: linear-gradient(180deg, rgba(255, 201, 60, .08), transparent 60%), #140f27; }
+.trophy.locked img { filter: grayscale(1) brightness(.45); }
+.trophy.locked .nm { color: var(--muted); }
+.trophy .nm { font-family: var(--display); font-size: 15px; line-height: 1.15; }
+.trophy .ds { font-size: 11px; color: var(--muted); line-height: 1.35; }
+.trophy .when { font-size: 11px; color: var(--gold); }
+.trophy .mini { margin-top: 5px; } .trophy .mini > i { background: var(--gold); }
+
+/* game feel */
+.hero img { animation: bob 2.4s steps(2) infinite; }
+.hero:nth-child(3n+2) img { animation-delay: .8s; } .hero:nth-child(3n) img { animation-delay: 1.6s; }
+@keyframes bob { 50% { transform: translateY(-2px); } }
+.hero.hot img { box-shadow: 0 0 0 2px var(--hp), 0 0 14px rgba(71, 224, 143, .45); }
+.hero.cold img { box-shadow: 0 0 0 2px var(--dmg); }
+.entry.fresh { animation: flash 1.8s steps(9) 2; }
+@keyframes flash { from { background: rgba(255, 201, 60, .32); } to { background: transparent; } }
+.shake { animation: shake .45s steps(6); }
+@keyframes shake { 20% { transform: translate(-5px, 2px); } 40% { transform: translate(5px, -2px); } 60% { transform: translate(-3px, -2px); } 80% { transform: translate(3px, 2px); } }
+.floater { position: fixed; z-index: 41; pointer-events: none; font-family: var(--display); font-size: 28px; font-weight: 700; text-shadow: 3px 3px 0 #000; animation: rise 1.6s ease-out forwards; }
+@keyframes rise { from { transform: translate(-50%, 0); opacity: 1; } to { transform: translate(-50%, -70px); opacity: 0; } }
+#fx { position: fixed; inset: 0; pointer-events: none; z-index: 40; width: 100%; height: 100%; }
+.celebrate { text-align: center; }
+.celebrate .kicker { font-family: var(--display); letter-spacing: .2em; text-transform: uppercase; color: var(--mana); font-size: 13px; }
+.celebrate .big { font-family: var(--display); font-weight: 700; font-size: 44px; line-height: 1.05; color: var(--gold); text-shadow: 4px 4px 0 #6b3d00; margin: 6px 0 4px; animation: pop .55s steps(6); }
+.celebrate img { width: 112px; height: 112px; image-rendering: pixelated; margin: 12px auto 6px; display: block; animation: pop .55s steps(6); }
+@keyframes pop { 0% { transform: scale(.2); } 70% { transform: scale(1.18); } 100% { transform: scale(1); } }
+.celebrate .foot { justify-content: center; align-items: center; }
+body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 60;
+  background: repeating-linear-gradient(0deg, rgba(0, 0, 0, .14) 0 1px, transparent 1px 3px); opacity: .5; }
+
 @media (max-width: 960px) {
   .stats { grid-template-columns: 1fr 1fr; }
   .grid2 { grid-template-columns: minmax(0, 1fr); }
@@ -217,6 +278,10 @@ h1, h2, h3, .disp { font-family: var(--display); font-weight: 600; letter-spacin
   .entry .what { grid-column: 1 / -1; }
   .hud h2 { font-size: 24px; }
   .chart-box { height: 220px; }
+  .board .hide-sm { display: none; }
+  .place.p1::after { content: none; }
+  .board td, .board th { padding-inline: 6px; }
+  .celebrate .big { font-size: 34px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
@@ -228,6 +293,7 @@ h1, h2, h3, .disp { font-family: var(--display); font-weight: 600; letter-spacin
 <main class="wrap" id="app" aria-live="polite"></main>
 <div id="actions"></div>
 <div id="layer"></div>
+<canvas id="fx" aria-hidden="true"></canvas>
 
 <script>
 "use strict";
@@ -280,6 +346,149 @@ function sprite(id, kind) {
   return (spriteCache[key] = c.toDataURL());
 }
 
+/* ------------------------------------------------------------------ sound */
+// Chiptune blips from the Web Audio API: no files, nothing downloaded.
+const SFX = (() => {
+  let ctx = null, muted = false;
+  try { muted = localStorage.getItem("aihf-muted") === "1"; } catch { /* storage blocked: default on */ }
+  const wake = () => {
+    if (muted) return null;
+    try { ctx ||= new (window.AudioContext || window.webkitAudioContext)(); if (ctx.state === "suspended") ctx.resume(); } catch { return null; }
+    return ctx;
+  };
+  const play = (notes, type = "square", vol = 0.045) => {
+    const c = wake(); if (!c) return;
+    const t0 = c.currentTime + 0.01;
+    for (const [freq, at, dur] of notes) {
+      const o = c.createOscillator(), g = c.createGain();
+      o.type = type; o.frequency.setValueAtTime(freq, t0 + at);
+      g.gain.setValueAtTime(vol, t0 + at); g.gain.exponentialRampToValueAtTime(0.0001, t0 + at + dur);
+      o.connect(g).connect(c.destination); o.start(t0 + at); o.stop(t0 + at + dur + 0.02);
+    }
+  };
+  return {
+    get muted() { return muted; },
+    toggle() { muted = !muted; try { localStorage.setItem("aihf-muted", muted ? "1" : "0"); } catch { /* fine */ } if (!muted) this.coin(); },
+    wake,
+    click: () => play([[660, 0, 0.04]], "square", 0.025),
+    coin: () => play([[988, 0, 0.08], [1319, 0.08, 0.28]]),
+    loss: () => play([[392, 0, 0.12], [311, 0.12, 0.12], [233, 0.24, 0.3]], "triangle", 0.07),
+    buy: (i = 0) => play([[523 + i * 40, 0, 0.05], [784 + i * 40, 0.05, 0.08]], "square", 0.03),
+    sell: (i = 0) => play([[784 - i * 30, 0, 0.05], [523 - i * 30, 0.05, 0.08]], "square", 0.03),
+    unlock: () => play([[523, 0, 0.1], [659, 0.1, 0.1], [784, 0.2, 0.1], [1047, 0.3, 0.45]]),
+    levelUp: () => play([[392, 0, 0.09], [523, 0.09, 0.09], [659, 0.18, 0.09], [784, 0.27, 0.09], [1047, 0.36, 0.09], [1319, 0.45, 0.6]]),
+    error: () => play([[180, 0, 0.18], [150, 0.18, 0.3]], "sawtooth", 0.035),
+  };
+})();
+const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ------------------------------------------------------------- badge icons */
+// 8x8 pixel art: "#" main colour, "o" detail colour.
+const ICONS = {
+  bell:     ["#ffc93c", "#b3741c", ["...##...", "..####..", ".######.", ".######.", ".######.", "########", "...oo...", "........"]],
+  coin:     ["#ffc93c", "#b3741c", ["..####..", ".######.", "###oo###", "###o####", "####o###", "###oo###", ".######.", "..####.."]],
+  calendar: ["#f3eeff", "#ff5a76", [".o....o.", "oooooooo", "oooooooo", "########", "#.#.#.##", "########", "#.#.#.##", "########"]],
+  star:     ["#ffc93c", "#fff4c2", ["...##...", "...##...", "###oo###", ".######.", "..####..", ".##..##.", ".#....#.", "........"]],
+  sword:    ["#dcdcef", "#ffc93c", ["......##", ".....###", "....###.", "o..###..", ".o###...", "..oo....", ".o.oo...", "o...o..."]],
+  crown:    ["#ffc93c", "#ff5a76", ["........", "#..##..#", "##.##.##", "########", "#o##o##o", "########", "........", "........"]],
+  shield:   ["#5cc8ff", "#1d6f9c", ["########", "#oooooo#", "#o####o#", "#o####o#", ".#o##o#.", ".#o##o#.", "..#oo#..", "...##..."]],
+  flame:    ["#ff7a3c", "#ffc93c", ["...#....", "...##...", "..###...", "..####..", ".##o###.", ".#ooo##.", ".#ooo#..", "..###..."]],
+  gem:      ["#ff8fb1", "#a3355a", ["........", ".######.", "##o##o##", "########", ".######.", "..####..", "...##...", "........"]],
+  trophy:   ["#ffc93c", "#b3741c", ["########", "#o####o#", "#o####o#", ".######.", "..####..", "...oo...", "..####..", ".######."]],
+  heart:    ["#ff5a76", "#ffd6de", ["........", ".##..##.", "#o######", "########", ".######.", "..####..", "...##...", "........"]],
+  alarm:    ["#ff5a76", "#ffd6de", ["...##...", "..####..", ".##oo##.", ".##oo##.", ".######.", "########", "########", "........"]],
+  eye:      ["#47e08f", "#0f0c1d", ["........", "..####..", ".######.", "###oo###", "###oo###", ".######.", "..####..", "........"]],
+  snow:     ["#bfefff", "#5cc8ff", ["#..#..#.", ".#.#.#..", "..ooo...", "###o###.", "..ooo...", ".#.#.#..", "#..#..#.", "........"]],
+};
+const iconCache = {};
+function icon(name) {
+  if (iconCache[name]) return iconCache[name];
+  const [main, detail, rows] = ICONS[name] || ICONS.star;
+  const c = document.createElement("canvas"); c.width = c.height = 10;
+  const g = c.getContext("2d");
+  rows.forEach((row, y) => [...row].forEach((ch, x) => {
+    if (ch === ".") return;
+    g.fillStyle = "rgba(0,0,0,.55)"; g.fillRect(x + 2, y + 2, 1, 1); // drop shadow
+    g.fillStyle = ch === "o" ? detail : main; g.fillRect(x + 1, y + 1, 1, 1);
+  }));
+  return (iconCache[name] = c.toDataURL());
+}
+
+/* ----------------------------------------------------------------- effects */
+function burst(colors = ["#ffc93c", "#47e08f", "#5cc8ff", "#ff8fb1", "#f3eeff"], count = 90) {
+  if (reducedMotion()) return;
+  const cv = $("#fx"), dpr = window.devicePixelRatio || 1;
+  cv.width = innerWidth * dpr; cv.height = innerHeight * dpr;
+  const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const ox = innerWidth / 2, oy = innerHeight * 0.42;
+  const bits = Array.from({ length: count }, () => {
+    const a = Math.random() * Math.PI * 2, v = 3 + Math.random() * 7;
+    return { x: ox, y: oy, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 4, s: 4 + Math.floor(Math.random() * 3) * 2, c: colors[Math.floor(Math.random() * colors.length)] };
+  });
+  const start = performance.now();
+  (function frame(now) {
+    const t = now - start; g.clearRect(0, 0, innerWidth, innerHeight);
+    if (t > 1600) return;
+    g.globalAlpha = Math.max(0, 1 - t / 1600);
+    for (const b of bits) { b.vy += 0.32; b.x += b.vx; b.y += b.vy; g.fillStyle = b.c; g.fillRect(Math.round(b.x), Math.round(b.y), b.s, b.s); }
+    requestAnimationFrame(frame);
+  })(start);
+}
+function floater(text, el, good) {
+  if (!el) return;
+  const box = el.getBoundingClientRect(), f = document.createElement("div");
+  f.className = "floater"; f.textContent = text; f.style.color = good ? "var(--hp)" : "var(--dmg)";
+  f.style.left = `${box.left + box.width / 2}px`; f.style.top = `${Math.max(8, box.top + 10)}px`;
+  document.body.appendChild(f); setTimeout(() => f.remove(), 1700);
+}
+function countUp(el, from, to, ms = 900) {
+  if (!el) return;
+  if (reducedMotion() || from === to) { el.textContent = money(to); return; }
+  const start = performance.now();
+  (function frame(now) {
+    const k = Math.min(1, (now - start) / ms), eased = 1 - Math.pow(1 - k, 3);
+    el.textContent = money(from + (to - from) * eased);
+    if (k < 1) requestAnimationFrame(frame);
+  })(start);
+}
+function shake(el) { if (!el || reducedMotion()) return; el.classList.remove("shake"); void el.offsetWidth; el.classList.add("shake"); }
+
+/* ------------------------------------------------------- level-ups & badges */
+// What this browser has already celebrated, per fund. First visit: remember
+// silently, so opening an old fund doesn't fire twenty fanfares.
+function seenKey(name) { return `aihf-seen:${name}`; }
+function loadSeen(name) { try { return JSON.parse(localStorage.getItem(seenKey(name)) || "null"); } catch { return null; } }
+function saveSeen(name, g) { try { localStorage.setItem(seenKey(name), JSON.stringify({ level: g.level, badges: g.badges.filter((b) => b.unlocked).map((b) => b.id) })); } catch { /* fine */ } }
+function celebrate(f) {
+  const g = f.game; if (!g || S.demo) return;
+  const seen = loadSeen(f.name);
+  saveSeen(f.name, g);
+  if (!seen) return;
+  const queue = [];
+  if (g.level > (seen.level || 1)) queue.push({ kind: "level", from: seen.level || 1, to: g.level, rank: g.rank });
+  for (const b of g.badges) if (b.unlocked && !(seen.badges || []).includes(b.id)) queue.push({ kind: "badge", badge: b });
+  S.cheers = queue; nextCheer();
+}
+function nextCheer() {
+  const c = (S.cheers || []).shift();
+  if (!c) return;
+  const more = S.cheers.length ? `<span class="faint" style="font-size:12px">${S.cheers.length} more</span>` : "";
+  if (c.kind === "level") {
+    modal(`<div class="celebrate"><div class="kicker">${esc(S.fund?.name || "")}</div><div class="big">LEVEL UP!</div>
+      <div class="num" style="font-size:22px">LV ${c.from} → <span style="color:var(--gold)">LV ${c.to}</span></div>
+      <p class="rank" style="margin:8px 0 0">${esc(c.rank)}</p>
+      <div class="foot">${more}<button class="btn gold" data-act="cheer">Nice!</button></div></div>`);
+    SFX.levelUp(); burst();
+  } else {
+    const b = c.badge;
+    modal(`<div class="celebrate"><div class="kicker">Achievement unlocked</div><img alt="" src="${icon(b.icon)}">
+      <div class="big" style="font-size:32px">${esc(b.name)}</div><p class="muted" style="margin:6px 0 0">${esc(b.desc)}</p>
+      <p class="faint" style="font-size:12px">+25 XP${b.at ? ` · ${day(b.at)}` : ""}</p>
+      <div class="foot">${more}<button class="btn gold" data-act="cheer">Nice!</button></div></div>`);
+    SFX.unlock(); burst(["#ffc93c", "#fff4c2", "#ffa65c"], 60);
+  }
+}
+
 /* ---------------------------------------------------------------- screens */
 function render() {
   $("#demo").innerHTML = S.demo ? `<div class="demo-banner">DEMO · sample data, not a real fund · run "aihf web" on your computer to play</div>` : "";
@@ -294,6 +503,7 @@ function topbar(right = "") {
     <div class="chips">${right}
       ${S.app ? `<span class="pill ${S.app.data_source === "yahoo" ? "" : "up"}" title="${esc(S.app.data_label)}">Data: ${S.app.data_source === "yahoo" ? "Yahoo · free" : "Financial Datasets"}</span>` : ""}
       ${m ? `<span class="pill ${m.key_set ? "" : "warn"}" title="The AI model your AI analysts think with">AI: ${esc(m.label)}${m.key_set ? "" : " · no key"}</span>` : ""}
+      <button class="btn small ghost" data-act="sound" aria-pressed="${!SFX.muted}" title="Sound effects">${SFX.muted ? "♪ Off" : "♪ On"}</button>
       <button class="btn small ghost" data-act="settings">Keys &amp; model</button></div></div>`;
 }
 
@@ -319,16 +529,18 @@ function renderHome() {
     const hp = Math.max(0, Math.min(1, f.nav / f.capital / 2));
     const lead = f.benchmark_return_pct == null ? null : f.return_pct - f.benchmark_return_pct;
     const status = f.halted ? `<span class="pill down">Frozen</span>` : f.sessions ? `<span class="pill up">Active</span>` : `<span class="pill warn">New</span>`;
+    const g = f.game || { level: 1, rank: "Intern", xp: 0, level_floor: 0, level_next: 50, unlocked: 0, badges: [] };
     return `<button class="frame slot" data-open="${esc(f.name)}" aria-label="Open ${esc(f.name)}">
-      <div class="top"><span class="lv">LV ${f.sessions}</span>${status}</div>
+      <div class="top"><span><span class="lv">LV ${g.level}</span> <span class="rank" style="font-size:11px">${esc(g.rank)}</span></span>${status}</div>
       <h3>${esc(f.name)}</h3>
+      <div class="xpline"><span>XP</span>${xpBar(g)}<span>🏆 ${g.unlocked}/${g.badges.length}</span></div>
       <div class="meta">${esc(f.mandate)} · ${esc(f.universe.join(" "))} · trades ${esc(f.rebalance)}</div>
       <div class="bar" title="Fund value vs starting money (the line marks the start)"><i class="${f.return_pct < 0 ? "bad" : ""}" style="width:${(hp * 100).toFixed(1)}%"></i><b style="left:50%"></b></div>
       <div class="top"><span class="num" style="font-size:20px">${money(f.nav)}</span><span class="num ${cls(f.return_pct)}" style="font-size:18px">${pct(f.return_pct)}</span></div>
       <div class="meta">${lead == null ? "Not played yet" : `${lead >= 0 ? "Ahead of" : "Behind"} ${esc(f.benchmark)} by ${(Math.abs(lead) * 100).toFixed(1)} pts`}${f.last_session ? ` · last day ${day(f.last_session)}` : ""}</div>
     </button>`;
   }).join("");
-  $("#app").innerHTML = `${topbar()}${coinBanner()}
+  $("#app").innerHTML = `${topbar()}${coinBanner()}${highScores()}
     <header style="display:flex;justify-content:space-between;align-items:baseline;margin:6px 0 14px;gap:12px;flex-wrap:wrap">
       <h2 style="font-size:22px">Select a save file</h2>
       <span class="label">${funds.length} fund${funds.length === 1 ? "" : "s"}</span></header>
@@ -337,20 +549,63 @@ function renderHome() {
       <span class="meta">Pick a team of AI analysts, choose stocks, start with pretend money.</span></button></div>`;
 }
 
+function xpBar(g) {
+  const span = Math.max(1, g.level_next - g.level_floor), into = Math.max(0, g.xp - g.level_floor);
+  return `<div class="bar" role="progressbar" aria-label="XP to next level" aria-valuemin="0" aria-valuemax="${span}" aria-valuenow="${into}"><i style="width:${Math.min(100, into / span * 100).toFixed(1)}%"></i></div>`;
+}
+
+function highScores() {
+  const funds = S.app?.funds || [];
+  if (!funds.length) return "";
+  const byName = Object.fromEntries(funds.map((f) => [f.name, f]));
+  const order = S.app.leaderboard || funds.map((f) => f.name);
+  const rows = order.map((name) => byName[name]).filter(Boolean).map((f) => {
+    if (f.error) return `<tr><td class="place">–</td><td colspan="6"><span class="fund">${esc(f.name)}</span> <span class="down" style="font-size:12px">can't be read</span></td></tr>`;
+    const g = f.game || { level: 1, rank: "Intern" };
+    const place = f.place ? `<span class="place p${f.place}">${f.place}${["ST", "ND", "RD"][f.place - 1] || "TH"}</span>` : `<span class="place">–</span>`;
+    const early = f.sessions > 0 && f.sessions < 21 ? `<span class="early" title="Under 21 trading days: luck still outweighs skill">early</span>` : "";
+    return `<tr data-open="${esc(f.name)}" tabindex="0" aria-label="Open ${esc(f.name)}">
+      <td>${place}</td>
+      <td><div class="fund">${esc(f.name)}${early}</div>${f.mandate !== f.name ? `<div class="who">${esc(f.mandate)}</div>` : ""}</td>
+      <td class="hide-sm"><span class="lv" style="font-size:12px">LV ${g.level}</span> <span class="rank" style="font-size:11px">${esc(g.rank)}</span></td>
+      <td class="r num ${cls(f.lead)}" style="font-size:16px">${f.lead == null ? "–" : (f.lead >= 0 ? "+" : "") + (f.lead * 100).toFixed(1) + " pts"}</td>
+      <td class="r hide-sm ${cls(f.return_pct)}">${f.sessions ? pct(f.return_pct) : "–"}</td>
+      <td class="r hide-sm ${f.max_drawdown_pct < 0 ? "down" : "flat"}">${f.sessions ? pct(f.max_drawdown_pct) : "–"}</td>
+      <td class="r hide-sm muted">${f.sessions}</td></tr>`;
+  }).join("");
+  return `<section class="frame board"><header><h2 class="title">HIGH SCORES</h2><span class="label">vs the S&amp;P 500</span></header>
+    <div style="overflow-x:auto"><table><thead><tr><th>#</th><th>Fund</th><th class="hide-sm">Level</th><th class="r">Lead over S&amp;P</th><th class="r hide-sm">Return</th><th class="r hide-sm">Worst drop</th><th class="r hide-sm">Days</th></tr></thead>
+    <tbody>${rows}</tbody></table></div>
+    <p class="foot-note">Each fund is scored against the S&amp;P 500 over its own days, so funds started on different dates compare fairly. Under 21 days is too early to call.</p></section>`;
+}
+
+function trophyRoom(f) {
+  const g = f.game; if (!g) return "";
+  const list = [...g.badges].sort((a, b) => (b.unlocked - a.unlocked) || (a.unlocked ? (b.at || "").localeCompare(a.at || "") : 0));
+  return `<section class="frame" style="margin-bottom:18px"><header><h3>Trophy room</h3><span class="label">${g.unlocked} of ${g.badges.length} unlocked</span></header>
+    <div class="trophies">${list.map((b) => `<div class="trophy ${b.unlocked ? "got" : "locked"}" title="${esc(b.desc)}">
+      <img alt="" src="${icon(b.icon)}">
+      <div style="min-width:0"><div class="nm">${esc(b.name)}</div><div class="ds">${esc(b.desc)}</div>
+        ${b.unlocked ? `<div class="when">Unlocked ${day(b.at)}</div>` : b.progress ? `<div class="mini" title="${b.progress[0]} of ${b.progress[1]}"><i style="width:${(b.progress[0] / b.progress[1] * 100).toFixed(0)}%"></i></div>` : ""}</div></div>`).join("")}</div></section>`;
+}
+
 function renderFund() {
   const f = S.fund, spec = f.spec;
   const lead = f.benchmark_return_pct == null ? null : f.return_pct - f.benchmark_return_pct;
   const hp = Math.max(0, Math.min(1, f.nav / f.capital / 2));
   const status = f.halted ? `<span class="pill down" title="${esc(f.halted)}">Frozen</span>` : `<span class="pill up">Active</span>`;
   const universe = f.universe;
+  const g = f.game || { level: 1, rank: "Intern", xp: 0, level_floor: 0, level_next: 50, unlocked: 0, badges: [] };
   if (!S.ticker || !universe.includes(S.ticker)) S.ticker = universe[0];
 
   $("#app").innerHTML = `${topbar(`<button class="btn small" data-act="home">◀ Saves</button>`)}${coinBanner()}
-    <div class="hud"><h2>${esc(f.name)}</h2><span class="lv" title="Trading days played">LV ${f.sessions}</span>${status}
+    <div class="hud"><h2>${esc(f.name)}</h2><span class="lv" title="Level from XP">LV ${g.level}</span>${status}
       <span class="muted" style="font-size:12px">${esc(spec.name)} · ${esc(universe.join(" "))} · trades ${esc(spec.rebalance)} · max ${(spec.max_position_pct * 100).toFixed(0)}% per stock</span></div>
+    <div class="xp"><span class="rank">${esc(g.rank)}</span>${xpBar(g)}<span class="num">${g.xp - g.level_floor} / ${g.level_next - g.level_floor} XP to LV ${g.level + 1}</span>
+      <span class="faint" title="10 XP per day played, 5 more per day ahead of the S&amp;P 500, 25 per trophy. Trading more earns nothing.">How XP works</span></div>
     ${f.halted ? `<div class="error" style="margin:-6px 0 18px">Frozen: ${esc(f.halted)}. Nothing trades until you resume.</div>` : ""}
     <section class="stats">
-      <div class="frame stat"><div class="label">Fund HP · value</div><div class="value num">${money(f.nav)}</div>
+      <div class="frame stat" id="hp-stat"><div class="label">Fund HP · value</div><div class="value num" id="hp-value">${money(f.nav)}</div>
         <div class="bar"><i class="${f.return_pct < 0 ? "bad" : ""}" style="width:${(hp * 100).toFixed(1)}%"></i><b style="left:50%"></b></div>
         <div class="note"><span class="${cls(f.return_pct)}">${pct(f.return_pct, 2)}</span> from ${money(f.capital)} start</div></div>
       <div class="frame stat"><div class="label">Boss · ${esc(f.benchmark)}</div><div class="value num ${cls(f.benchmark_return_pct)}">${pct(f.benchmark_return_pct, 2)}</div>
@@ -376,10 +631,29 @@ function renderFund() {
       <div class="frame">${partyPanel(f)}</div>
       <div class="frame">${nextPanel(f)}</div>
     </section>
+    ${trophyRoom(f)}
     <section class="frame"><header><h3>Battle log</h3><span class="label">newest first</span></header>${logPanel(f)}</section>`;
 
+  S.freshDay = null; // the flash plays once, not on every re-render
   renderActions();
   if (f.series.length >= 2) requestAnimationFrame(() => drawChart(f));
+  afterRound(f);
+}
+
+// The payoff after a played day: the value counts up, damage numbers fly,
+// trades blip, a bad day shakes the screen. Only right after a round.
+function afterRound(f) {
+  const before = S.before; S.before = null;
+  if (!before || before.name !== f.name || before.session === f.last_session) return;
+  const el = $("#hp-value"), diff = f.nav - before.nav;
+  countUp(el, before.nav, f.nav);
+  const fresh = f.log.filter((e) => e.at === f.last_session && e.kind === "trade");
+  fresh.slice(0, 4).forEach((e, i) => setTimeout(() => (e.side === "buy" ? SFX.buy(i) : SFX.sell(i)), 120 * i));
+  setTimeout(() => {
+    if (Math.abs(diff) >= 0.5) floater(`${diff >= 0 ? "+" : "-"}${money(Math.abs(diff)).replace("-", "")}`, $("#hp-stat"), diff >= 0);
+    if (diff >= 0) SFX.coin(); else SFX.loss();
+    if (before.nav && diff / before.nav <= -0.015) shake($("#app"));
+  }, 120 * Math.min(fresh.length, 4) + 100);
 }
 
 function partyPanel(f) {
@@ -393,7 +667,8 @@ function partyPanel(f) {
       const words = !sig ? "No view yet. Play a day and I'll report in."
         : stance === "abstain" ? `zzz… no view: ${sig.reasoning.replace(/^abstained:\s*/, "")}`
         : sig.reasoning || (a.kind === "quant" ? "Numbers only. No commentary." : "");
-      return `<article class="hero">
+      const mood = sig && stance !== "abstain" ? (sig.value > 0.5 ? "hot" : sig.value < -0.5 ? "cold" : "") : "";
+      return `<article class="hero ${mood}">
         <img alt="" src="${sprite(a.id, a.kind)}">
         <div style="min-width:0"><div class="who">${esc(a.name)}</div><div class="cls">${a.kind === "quant" ? "Quant · no AI" : a.kind === "tracker" ? "Tracker · public filings" : "AI analyst"}${a.motto ? " · " + esc(a.motto) : ""}${a.id === "congress" ? ` · data by <a href="https://www.bargo.ai" target="_blank" rel="noopener">Bargo</a>` : ""}</div>
           <div class="row">${sig ? `<span class="pill stance-${esc(stance)}">${esc(stance === "abstain" ? "no view" : stance)}</span>` : `<span class="pill faint">waiting</span>`}
@@ -442,7 +717,7 @@ function logPanel(f) {
       default: return ["redo", esc(e.kind), esc(e.detail || "")];
     }
   };
-  return `<div class="log">${f.log.map((e) => { const [k, tag, what] = line(e); return `<div class="entry"><span class="when">${day(e.at)}</span><span class="tag ${k}">${tag}</span><span class="what">${what}</span></div>`; }).join("")}</div>`;
+  return `<div class="log">${f.log.map((e) => { const [k, tag, what] = line(e); return `<div class="entry ${S.freshDay && e.at === S.freshDay ? "fresh" : ""}"><span class="when">${day(e.at)}</span><span class="tag ${k}">${tag}</span><span class="what">${what}</span></div>`; }).join("")}</div>`;
 }
 
 function renderActions() {
@@ -607,6 +882,7 @@ async function startRun(mode) {
   try { await api(`/api/funds/${encodeURIComponent(name)}/run`, { mode }); }
   catch (e) { return modal(`<h3>Couldn't start</h3><div class="error">${esc(e.message)}</div><div class="foot"><button class="btn ghost" data-act="close">Close</button></div>`); }
   const started = Date.now();
+  S.pendingBefore = { name, nav: S.fund.nav, session: S.fund.last_session };
   const heroes = S.fund.spec.strategies.flatMap((s) => s.analysts).slice(0, 5);
   const show = () => modal(`<div class="thinking"><h3>Round in progress</h3>
     <div class="sprites">${heroes.map((a) => `<img alt="" src="${sprite(a.id, a.kind)}">`).join("")}</div>
@@ -618,8 +894,12 @@ async function startRun(mode) {
   S.poll = setInterval(async () => {
     let job; try { job = await api(`/api/funds/${encodeURIComponent(name)}/run`); } catch { return; }
     if (job.state === "running") return show();
-    clearInterval(S.poll); closeModal(); await openFund(name);
+    clearInterval(S.poll); closeModal();
+    if (job.state === "done") { S.before = S.pendingBefore; S.freshDay = job.session; }
+    S.pendingBefore = null;
+    await openFund(name);
     if (job.state === "done") toast(`Day ${day(job.session)} played · fund ${money(job.nav)}${job.decided ? " · new plan made" : ""}`);
+    else if (job.state === "failed") SFX.error();
     else modal(`<h3>${job.state === "nothing_due" ? "No new day yet" : "Round stopped"}</h3><div class="${job.state === "nothing_due" ? "muted" : "error"}">${esc(job.message)}</div>
       ${job.state === "failed" ? `<p class="muted">The fund froze itself so nothing trades on a broken book. Fix the problem (often a key or the internet), then Resume.</p>` : ""}
       <div class="foot"><button class="btn ghost" data-act="close">Close</button></div>`);
@@ -639,16 +919,26 @@ function haltModal() {
 
 /* ------------------------------------------------------------- navigation */
 async function refreshApp() { S.app = await api("/api/state"); }
-async function openFund(name) { S.fund = await api(`/api/funds/${encodeURIComponent(name)}`); render(); window.scrollTo({ top: 0 }); }
+async function openFund(name) {
+  const switching = S.fund?.name !== name, afterRun = !!S.before;
+  S.fund = await api(`/api/funds/${encodeURIComponent(name)}`);
+  render(); if (switching) window.scrollTo({ top: 0 });
+  const opened = S.fund;
+  setTimeout(() => { if (S.fund === opened) celebrate(opened); }, afterRun ? 1500 : 250);
+}
 
 document.addEventListener("click", async (ev) => {
+  SFX.wake();
   const t = ev.target.closest("[data-act],[data-open],[data-ticker],[data-scrim]");
   if (!t) return;
+  if (t.matches(".btn,.tab,[data-open]") && t.dataset.act !== "sound") SFX.click();
   if (t.dataset.scrim !== undefined && ev.target === t) return closeModal();
   if (t.dataset.open) return openFund(t.dataset.open).catch((e) => toast(e.message));
   if (t.dataset.ticker) { S.ticker = t.dataset.ticker; return renderFund(); }
   switch (t.dataset.act) {
-    case "home": S.fund = null; await refreshApp().catch(() => {}); return render();
+    case "home": S.fund = null; S.freshDay = null; await refreshApp().catch(() => {}); return render();
+    case "sound": SFX.toggle(); return render();
+    case "cheer": closeModal(); return nextCheer();
     case "settings": return settingsModal();
     case "new": return newGameModal();
     case "close": return closeModal();
@@ -660,7 +950,10 @@ document.addEventListener("click", async (ev) => {
       try { await api(`/api/funds/${encodeURIComponent(S.fund.name)}/resume`, {}); await openFund(S.fund.name); toast("Resumed"); } catch (e) { toast(e.message); }
   }
 });
-document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && $("#layer").innerHTML) closeModal(); });
+document.addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape" && $("#layer").innerHTML) { closeModal(); S.cheers = []; }
+  if ((ev.key === "Enter" || ev.key === " ") && ev.target.matches("tr[data-open]")) { ev.preventDefault(); openFund(ev.target.dataset.open).catch((e) => toast(e.message)); }
+});
 let resizeTimer; window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => S.fund && S.fund.series.length >= 2 && drawChart(S.fund), 120); });
 
 /* ------------------------------------------------------------------ demo */
@@ -712,11 +1005,38 @@ function demoData() {
     halted: null, spec, llm_model: "deepseek-flash", series, cash, holdings, max_drawdown_pct: series.reduce((acc, p) => { acc.peak = Math.max(acc.peak, p.nav); acc.worst = Math.min(acc.worst, p.nav / acc.peak - 1); return acc; }, { peak: cap, worst: 0 }).worst,
     view: { as_of: last.session, status: "pending", signals, targets, clamps: [{ ticker: "MSFT", limit: "max_position_pct", before: 0.29, after: 0.25 }] },
     pending: { as_of: last.session, targets, clamps: [{ ticker: "MSFT", limit: "max_position_pct", before: 0.29, after: 0.25 }] }, log, run: { state: "idle" } };
+  fund.lead = fund.return_pct - fund.benchmark_return_pct; fund.place = 1;
+  fund.game = demoGame(days, { opening_bell: 0, first_trade: 1, week_one: 4, boss_fight: 6, month: 20, hot_streak: 11, cool_head: 21, iron_shield: 24 });
   const summary = (({ spec, series, holdings, view, log, run, ...rest }) => rest)(fund);
   const state = { data_key_set: false, data_source: "yahoo", data_label: "Yahoo Finance (free, prices only)", data_ready: true, model: { id: "deepseek-flash", label: "DeepSeek V4.1 Flash", provider: "DeepSeek", key_env: "DEEPSEEK_API_KEY", key_set: true },
     models: [{ id: "deepseek-flash", label: "DeepSeek V4.1 Flash", provider: "DeepSeek", key_env: "DEEPSEEK_API_KEY", key_set: true }],
-    mandates: [{ file: "example", ...spec }], funds: [summary, { ...summary, name: "tech-trio", universe: ["GOOGL", "AMZN", "META"], sessions: 0, last_session: null, nav: cap, return_pct: 0, benchmark_return_pct: null, pending: false }] };
+    mandates: [{ file: "example", ...spec }], leaderboard: ["demo-fund", "copy-desk-trial", "tech-trio"],
+    funds: [summary,
+      { ...summary, name: "copy-desk-trial", mandate: "copy-desk", universe: ["AAPL", "OXY", "KO", "AXP"], sessions: 12, nav: cap * 0.987, return_pct: -0.013, benchmark_return_pct: 0.004, lead: -0.017, max_drawdown_pct: -0.031, place: 2, game: demoGame(days.slice(0, 12), { opening_bell: 0, first_trade: 1, week_one: 4, copycat: 2 }) },
+      { ...summary, name: "tech-trio", universe: ["GOOGL", "AMZN", "META"], sessions: 0, last_session: null, nav: cap, return_pct: 0, benchmark_return_pct: null, lead: null, max_drawdown_pct: 0, place: null, pending: false, game: demoGame([], {}) }] };
   return { state, fund };
+}
+const DEMO_BADGES = [
+  ["opening_bell", "Opening Bell", "bell", "Play your first trading day."], ["first_trade", "First Trade", "coin", "Your fund makes its first buy or sell."],
+  ["week_one", "Week One", "calendar", "Play 5 trading days.", 5], ["month", "A Month In", "calendar", "Play 21 trading days (about a month).", 21],
+  ["season", "Season Veteran", "star", "Play 63 trading days (about 3 months).", 63], ["boss_fight", "Boss Fight", "sword", "Be ahead of the S&P 500 after at least 5 days."],
+  ["boss_slayer", "Boss Slayer", "crown", "Be ahead of the S&P 500 after 63 days or more. The one that counts."], ["iron_shield", "Iron Shield", "shield", "After 21+ days, your worst drop is smaller than the S&P 500's."],
+  ["hot_streak", "Hot Streak", "flame", "Beat the S&P 500 five days in a row.", 5], ["high_score", "High Score", "gem", "Fund value 5% above where it started.", 5],
+  ["double_digits", "Double Digits", "trophy", "Fund value 10% above where it started.", 10], ["comeback", "Comeback Kid", "heart", "Fall 5% from a high, then climb back to a new high."],
+  ["pump_dodger", "Pump Dodger", "alarm", "The pump guard keeps you out of a suspected pump."], ["shields_up", "Shields Up", "shield", "The market filter cuts risk when the S&P 500 turns down."],
+  ["copycat", "Copycat", "eye", "A tracker spots insiders, a famous fund or Congress buying one of your stocks."], ["cool_head", "Cool Head", "snow", "Freeze the fund, then resume it."]];
+function demoGame(days, unlocked) {
+  const at = (i) => days[Math.min(i, days.length - 1)];
+  const badges = DEMO_BADGES.map(([id, name, ic, desc, target]) => {
+    const when = unlocked[id];
+    const b = { id, name, icon: ic, desc, unlocked: when != null, at: when != null ? at(when) : null };
+    if (target && when == null) b.progress = [Math.min(days.length, target), target];
+    return b;
+  });
+  const n = badges.filter((b) => b.unlocked).length, xp = days.length * 10 + Math.round(days.length * 0.6) * 5 + n * 25;
+  let level = 1; while (xp >= 25 * (level + 1) * level) level++;
+  const rank = [[17, "Legend"], [12, "Partner"], [8, "Portfolio Manager"], [5, "Trader"], [3, "Analyst"], [1, "Intern"]].find(([l]) => level >= l)[1];
+  return { xp, level, rank, level_floor: 25 * level * (level - 1), level_next: 25 * (level + 1) * level, unlocked: n, badges };
 }
 let DEMO;
 async function demoApi(path, body) {
@@ -727,7 +1047,7 @@ async function demoApi(path, body) {
   const name = decodeURIComponent(path.split("/")[3]);
   if (name === "demo-fund") return DEMO.fund;
   const s = DEMO.state.funds.find((f) => f.name === name);
-  return { ...s, spec: DEMO.fund.spec, series: [], cash: s.capital, holdings: [], view: null, pending: null, log: [], max_drawdown_pct: 0, run: { state: "idle" } };
+  return { ...s, spec: DEMO.fund.spec, series: [], cash: s.nav, holdings: [], view: null, pending: null, log: [], run: { state: "idle" } };
 }
 
 /* ------------------------------------------------------------------ boot */

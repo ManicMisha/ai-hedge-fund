@@ -65,6 +65,8 @@ aihf web
 
 Opens an arcade-style dashboard at http://localhost:8000 for your paper funds: each fund as a save file, the analysts as a party with their latest views per stock, fund value against the S&P 500, holdings, the next plan, and a battle log of every trade, risk trim and halt. **Play next day** shows what will happen and asks before it runs one session (the same `tick` the CLI uses); **Freeze** is the kill switch. You can add keys, pick the AI model and start a new fund from the page.
 
+The home screen opens on **High Scores**: every fund ranked by how far it is ahead of the S&P 500 over its own days, with its return, worst drop and days played. Funds under 21 days are marked *early*, because that is still mostly luck. Each fund earns XP (10 per day played, 5 more per day it is ahead of the S&P 500, 25 per trophy; trading more earns nothing), levels up from Intern to Legend, and collects 16 trophies in its Trophy room, from Opening Bell to Boss Slayer (ahead of the S&P 500 after 63+ days). Level-ups and new trophies get a fanfare; a played day counts the fund value up and shows the gain or loss. Sound effects are made in the browser; turn them off with the ♪ button. Animations respect your system's reduce-motion setting.
+
 It serves this computer only (127.0.0.1) and needs no extra install. `--port 8080` to move it, `--no-browser` to skip opening a tab. Backtesting is still in the terminal app.
 
 ### Free data

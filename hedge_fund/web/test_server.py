@@ -262,3 +262,18 @@ def test_trackers_ask_for_sec_contact_details_and_validate_them(http, dash, monk
     state = dash.state()
     assert {"sec_set", "bargo_set", "xai_set"} <= set(state)
     assert json.dumps(state).count("jane@example.com") == 0  # the dashboard never echoes it back
+
+
+def test_state_ranks_funds_and_carries_their_game_progress(http, dash, clock):
+    deploy("alpha", FundSpec(**SPEC), ["AAPL"], root=dash.paper_root)
+    deploy("beta", FundSpec(**SPEC), ["AAPL"], root=dash.paper_root)
+    clock("2024-06-04")
+    assert http("POST", "/api/funds/alpha/run", {"mode": "run"})[0] == 200
+    assert dash.runs.wait("alpha")["state"] == "done"
+    status, state = http("GET", "/api/state")
+    assert status == 200 and state["leaderboard"] == ["alpha", "beta"]  # played before unplayed
+    alpha = next(f for f in state["funds"] if f["name"] == "alpha")
+    assert alpha["place"] == 1 and alpha["lead"] is not None
+    assert alpha["game"]["xp"] > 0 and any(b["id"] == "opening_bell" and b["unlocked"] for b in alpha["game"]["badges"])
+    beta = next(f for f in state["funds"] if f["name"] == "beta")
+    assert beta["place"] is None and beta["game"]["level"] == 1
