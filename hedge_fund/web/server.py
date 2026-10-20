@@ -20,6 +20,7 @@ for it. One run per fund at a time.
 from __future__ import annotations
 
 import json
+import os
 import re
 import threading
 import webbrowser
@@ -246,6 +247,8 @@ class Dashboard:
             raise ApiError(HTTPStatus.BAD_REQUEST, f"unknown key {env_var!r}")
         if not value or any(c in value for c in "\r\n\0") or len(value) > 500:
             raise ApiError(HTTPStatus.BAD_REQUEST, "paste the key exactly as given: one line, no spaces around it")
+        if env_var == views.SEC_VAR and not re.fullmatch(r"[^@\s][^@]*\s+\S+@\S+\.\S+", value):
+            raise ApiError(HTTPStatus.BAD_REQUEST, "the SEC wants your name and email, like: Jane Smith jane@example.com")
         self.save_key(env_var, value)
         return self.state()
 
@@ -290,6 +293,14 @@ class Dashboard:
         if uses_ai and model["key_env"] and not model["key_set"]:
             raise ApiError(HTTPStatus.PRECONDITION_REQUIRED,
                            f"Add your {model['provider']} key for {model['label']} first (Keys & model).")
+        needs = {env for s in spec.strategies for m in s.models for env in views.analyst_view(m.name)["needs"]}
+        if views.SEC_VAR in needs and not os.environ.get(views.SEC_VAR, "").strip():
+            raise ApiError(HTTPStatus.PRECONDITION_REQUIRED,
+                           "The trackers read SEC filings, and the SEC asks every program for a name and email. "
+                           "Add yours under Keys & model (it is only sent to the SEC).")
+        missing = sorted(env for env in needs - {views.SEC_VAR} if not os.environ.get(env, "").strip())
+        if missing:
+            raise ApiError(HTTPStatus.PRECONDITION_REQUIRED, f"Add {', '.join(missing)} first (Keys & model).")
 
 
 # ---------------------------------------------------------------------------

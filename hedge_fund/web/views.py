@@ -36,7 +36,15 @@ ANALYSTS = {
     "trend": ("Trend Scout", "Maths only: above its 200-day average or out"),
     "momentum": ("Momentum Runner", "Maths only: last year's winners keep running"),
     "low_vol": ("Steady Hand", "Maths only: calmer stocks, smaller drops"),
+    "insiders": ("Insider Tracker", "Copies company bosses buying their own stock"),
+    "superinvestors": ("Fund Tracker", "Copies famous funds' biggest bets (13F)"),
+    "congress": ("Capitol Tracker", "Copies stock buys disclosed by Congress"),
+    "social_watch": ("Hype Watch", "Warns when X looks like a pump. Never buys"),
 }
+
+SEC_VAR = "SEC_USER_AGENT"
+BARGO_VAR = "BARGO_API_KEY"
+XAI_VAR = "XAI_API_KEY"
 
 _LOG_LIMIT = 200
 
@@ -51,6 +59,9 @@ def app_state(paper_root: Path, mandates_root: Path) -> dict:
         "data_source": data_source(),
         "data_label": SOURCE_LABELS[data_source()],
         "data_ready": not needs_data_key(),
+        "sec_set": bool(os.environ.get(SEC_VAR, "").strip()),
+        "bargo_set": bool(os.environ.get(BARGO_VAR, "").strip()),
+        "xai_set": bool(os.environ.get(XAI_VAR, "").strip()),
         "model": current_model(),
         "models": [_model_view(mid, label, provider) for label, mid, provider in load_api_models()],
         "mandates": mandates(mandates_root),
@@ -77,7 +88,7 @@ def _model_view(model_id: str, label: str, provider: str | None) -> dict:
 
 def allowed_key_vars() -> set[str]:
     """The only environment variables the dashboard may write."""
-    return {DATA_KEY, *PROVIDER_ENV_VARS.values()}
+    return {DATA_KEY, SEC_VAR, BARGO_VAR, *PROVIDER_ENV_VARS.values()}
 
 
 def mandates(root: Path) -> list[dict]:
@@ -116,7 +127,9 @@ def analyst_view(name: str) -> dict:
     display, motto = ANALYSTS.get(name, (name.replace("_", " ").title(), ""))
     cls = ALPHA_MODEL_REGISTRY.get(name)
     is_llm = isinstance(cls, type) and issubclass(cls, LLMAgent)
-    return {"id": name, "name": display, "motto": motto, "kind": "ai" if is_llm else "quant"}
+    kind = "ai" if is_llm else getattr(cls, "kind", "quant")
+    return {"id": name, "name": display, "motto": motto, "kind": kind,
+            "needs": list(getattr(cls, "required_env", ()))}
 
 
 # ---------------------------------------------------------------------------

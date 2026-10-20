@@ -262,6 +262,7 @@ function sprite(id, kind) {
   const rnd = () => { h ^= h << 13; h ^= h >>> 17; h ^= h << 5; return (h >>> 0) / 4294967296; };
   const palettes = kind === "quant"
     ? [["#5cc8ff", "#1d6f9c"], ["#7af0ff", "#2a7f8f"]]
+    : kind === "tracker" ? [["#c7f464", "#5d7a1c"], ["#e8e8e8", "#6b6b6b"]]
     : [["#ffc93c", "#b3741c"], ["#ff8fb1", "#a3355a"], ["#9b8cff", "#4f3fb0"], ["#47e08f", "#1f7a4c"], ["#ffa65c", "#a5531c"]];
   const [main, dark] = palettes[Math.floor(rnd() * palettes.length)];
   // face: a mirrored 10x10 creature with eyes on row 4
@@ -302,6 +303,8 @@ function coinBanner() {
   const usesAI = S.fund ? S.fund.spec.strategies.some((s) => s.analysts.some((x) => x.kind === "ai")) : false;
   if (a.data_ready === false) missing.push("Financial Datasets key (stock data)");
   if (usesAI && a.model.key_env && !a.model.key_set) missing.push(`${a.model.provider} key (this fund has AI analysts using ${a.model.label})`);
+  const needsSec = S.fund ? S.fund.spec.strategies.some((s) => s.analysts.some((x) => (x.needs || []).includes("SEC_USER_AGENT"))) : false;
+  if (needsSec && a.sec_set === false) missing.push("your name and email for the SEC (the trackers read SEC filings)");
   if (!missing.length) return "";
   return `<section class="frame coin"><div class="big disp">INSERT COIN</div>
     <div>Add ${missing.map(esc).join(" and ")} before you can play a day. Keys stay on this computer.</div>
@@ -392,7 +395,7 @@ function partyPanel(f) {
         : sig.reasoning || (a.kind === "quant" ? "Numbers only. No commentary." : "");
       return `<article class="hero">
         <img alt="" src="${sprite(a.id, a.kind)}">
-        <div style="min-width:0"><div class="who">${esc(a.name)}</div><div class="cls">${a.kind === "quant" ? "Quant · no AI" : "AI analyst"}${a.motto ? " · " + esc(a.motto) : ""}</div>
+        <div style="min-width:0"><div class="who">${esc(a.name)}</div><div class="cls">${a.kind === "quant" ? "Quant · no AI" : a.kind === "tracker" ? "Tracker · public filings" : "AI analyst"}${a.motto ? " · " + esc(a.motto) : ""}${a.id === "congress" ? ` · data by <a href="https://www.bargo.ai" target="_blank" rel="noopener">Bargo</a>` : ""}</div>
           <div class="row">${sig ? `<span class="pill stance-${esc(stance)}">${esc(stance === "abstain" ? "no view" : stance)}</span>` : `<span class="pill faint">waiting</span>`}
             <span class="power" title="Confidence ${sig?.confidence ?? 0} of 100">${Array.from({ length: 10 }, (_, i) => `<i class="${i < bars ? "on" : ""}"></i>`).join("")}</span></div></div>
         <div class="bubble ${!sig || stance === "abstain" ? "quiet" : ""}">${esc(words)}</div></article>`;
@@ -518,6 +521,15 @@ function settingsModal(error = "") {
         <select id="model">${Object.entries(byProvider).map(([p, ms]) => `<optgroup label="${esc(p)}">${ms.map((x) => `<option value="${esc(x.id)}" ${x.id === m.id ? "selected" : ""}>${esc(x.label)}${x.key_set ? " ✓" : ""}</option>`).join("")}</optgroup>`).join("")}</select>
         <span class="hint">Cheaper models cost cents per day played; top models can cost dollars. DeepSeek Flash is a cheap start.</span></div>
       <div class="field" id="ai-key-field"></div>
+      <div class="field"><label class="label" for="sec-ua">Name and email for the SEC · trackers</label>
+        <input id="sec-ua" type="text" autocomplete="off" placeholder="${a.sec_set ? "Saved ✓ (type to replace)" : "Jane Smith jane@example.com"}">
+        <span class="hint ${a.sec_set ? "ok" : ""}">${a.sec_set ? "Saved" : "Free. The SEC asks every program reading its filings to say who is asking. Only sent to the SEC. Needed by Insider Tracker and Fund Tracker."}</span></div>
+      <div class="field"><label class="label" for="bargo-key">Bargo key · Capitol Tracker</label>
+        <input id="bargo-key" type="password" autocomplete="off" placeholder="${a.bargo_set ? "Saved ✓ (paste to replace)" : "Optional"}">
+        <span class="hint ${a.bargo_set ? "ok" : ""}">${a.bargo_set ? "Saved" : "Optional and free from bargo.ai. Without it you get 30 look-ups a day, enough for about 25 stocks."}</span></div>
+      <div class="field"><label class="label" for="xai-key">xAI key · Hype Watch</label>
+        <input id="xai-key" type="password" autocomplete="off" placeholder="${a.xai_set ? "Saved ✓ (paste to replace)" : "Optional"}">
+        <span class="hint ${a.xai_set ? "ok" : ""}">${a.xai_set ? "Saved" : "Optional. Hype Watch asks Grok to search X for pump chatter, a few cents per stock per day. Without it Hype Watch sits out."}</span></div>
       ${error ? `<div class="error">${esc(error)}</div>` : ""}
       <div class="foot"><button type="button" class="btn ghost" data-act="close">Close</button><button class="btn gold" type="submit">Save</button></div>
     </form>`);
@@ -534,6 +546,10 @@ function settingsModal(error = "") {
       const fd = $("#fd-key").value.trim(), ai = $("#ai-key"), model = $("#model").value;
       if (fd) S.app = await api("/api/keys", { env_var: "FINANCIAL_DATASETS_API_KEY", value: fd });
       if (ai && ai.value.trim()) S.app = await api("/api/keys", { env_var: ai.dataset.env, value: ai.value.trim() });
+      const sec = $("#sec-ua").value.trim(), bargo = $("#bargo-key").value.trim(), xai = $("#xai-key").value.trim();
+      if (sec) S.app = await api("/api/keys", { env_var: "SEC_USER_AGENT", value: sec });
+      if (bargo) S.app = await api("/api/keys", { env_var: "BARGO_API_KEY", value: bargo });
+      if (xai) S.app = await api("/api/keys", { env_var: "XAI_API_KEY", value: xai });
       if (model !== S.app.model.id) S.app = await api("/api/model", { id: model });
       closeModal(); toast("Saved"); if (S.fund) await openFund(S.fund.name); else render();
     } catch (e) { settingsModal(e.message); }
@@ -552,7 +568,7 @@ function newGameModal(error = "", values = {}) {
       <div class="field"><label class="label" for="g-cap">Starting money (pretend)</label><input id="g-cap" inputmode="decimal" value="${esc(values.capital || "")}"></div>
       ${error ? `<div class="error">${esc(error)}</div>` : ""}
       <div class="foot"><button type="button" class="btn ghost" data-act="close">Cancel</button><button class="btn gold" type="submit">Start game</button></div></form>`);
-  const SUGGEST = { "trend-shield": "SPY, EFA, IEF, VNQ, GLD", "momentum-leaders": "AAPL, MSFT, NVDA, AMZN, GOOGL, META, JPM, V, LLY, XOM, COST, HD", "ai-quality-check": "AAPL, MSFT, NVDA, GOOGL, JPM, LLY, COST, XOM" };
+  const SUGGEST = { "trend-shield": "SPY, EFA, IEF, VNQ, GLD", "momentum-leaders": "AAPL, MSFT, NVDA, AMZN, GOOGL, META, JPM, V, LLY, XOM, COST, HD", "ai-quality-check": "AAPL, MSFT, NVDA, GOOGL, JPM, LLY, COST, XOM", "copy-desk": "AAPL, AXP, BAC, KO, OXY, CMG, GOOGL, AMZN, UBER, HLT, NVDA, MSFT" };
   const sync = () => { const m = ms.find((x) => x.file === $("#g-team").value); $("#g-team-hint").textContent = `${describe(m)} · trades ${m.rebalance}`;
     const tip = SUGGEST[m.file]; $("#g-stocks-hint").textContent = tip ? `Suggested for this team: ${tip}` : "US stock or ETF tickers, separated by commas.";
     if (tip && (!$("#g-stocks").value || $("#g-stocks").dataset.auto)) { $("#g-stocks").value = tip; $("#g-stocks").dataset.auto = "1"; } if (!$("#g-cap").value || $("#g-cap").dataset.auto) { $("#g-cap").value = m.capital; $("#g-cap").dataset.auto = "1"; } };

@@ -73,15 +73,31 @@ Without a Financial Datasets key the app uses free daily prices from Yahoo Finan
 
 ### Fund plans
 
-Three ready-made plans are copied into `~/.hedge-fund/mandates/` the first time you run this version. Run them side by side as separate paper funds and let the results decide:
+Four ready-made plans are copied into `~/.hedge-fund/mandates/` the first time you run this version. Run them side by side as separate paper funds and let the results decide:
 
 | Plan | Analysts | Needs | Aims for |
 | --- | --- | --- | --- |
 | `trend-shield` | Trend (200-day average) on 5 asset classes: SPY, EFA, IEF, VNQ, GLD | nothing | Smaller drops; lags in strong bull markets |
 | `momentum-leaders` | Momentum ×2, Trend, Low volatility on 12 large caps, plus a market filter that cuts to 30% invested when SPY is below its 200-day average | nothing | Beat SPY with smaller drops |
 | `ai-quality-check` | Momentum Leaders on 70% of the money, Buffett and Munger on 30% | Financial Datasets key + an AI key | Tests whether the AI adds anything |
+| `copy-desk` | Insider, fund, congress and hype trackers on 40%, Momentum Leaders on 60% (see below) | Your name and email for the SEC; xAI key optional | Tests whether copying the smart money adds anything |
 
 New building blocks: price-only analysts `trend`, `momentum` and `low_vol` (no AI, no fundamentals); `blend: {method: slot_weighted}`, which gives each ticker an equal slot and leaves unused slots in cash; and `risk.market_filter: {ma_days, risk_off_gross}`. The two stock plans also carry `risk.pump_guard`: any stock that jumps 25% in a day or 40% in a week on 4× its normal volume is treated as a likely pump, and the fund stays out of it (selling if it holds it) for 10 trading days. Each alarm shows in the dashboard's battle log. It reads price and volume only; social-media buzz isn't part of the check yet. None of these patterns is a promise: published market patterns have lost about a third of their strength after publication on average, and momentum has crashed hard after market bottoms. Backtest first with `aihf backtest ~/.hedge-fund/mandates/momentum-leaders.yaml --universe AAPL,MSFT,...`.
+
+### Copy desk: following the smart money
+
+The `copy-desk` plan puts 40% of the money behind four trackers that read trades people are required to publish, and 60% behind the Momentum Leaders signals:
+
+| Tracker | Watches | Source | Needs |
+| --- | --- | --- | --- |
+| `insiders` (Insider Tracker) | Open-market buys by a company's officers and directors; strongest when several buy together or the CEO/CFO buys | SEC Form 4, public within 2 business days | Your name and email for the SEC (free) |
+| `superinvestors` (Fund Tracker) | What Berkshire, Pershing Square, Appaloosa, Baupost and Duquesne own, how big a bet it is, and whether they added | SEC 13F, up to 4.5 months old | Same |
+| `congress` (Capitol Tracker) | Stock buys disclosed by members of Congress (half weight: the evidence is mixed) | [Bargo](https://www.bargo.ai) free feed, last 3 months only | Nothing; a free Bargo key raises the daily limit |
+| `social_watch` (Hype Watch) | Asks Grok to search X for pump chatter. It can only vote **against** a stock, never for it | xAI live X search | An xAI key (a few cents per stock per day); sits out without one |
+
+Every tracker reads a filing by the day it became public, never the day the trade happened, so backtests can't peek. Each abstains when there is nothing to copy, and a stock nobody is buying keeps its slot in cash. Sales are ignored: insiders and politicians sell for many reasons, and the research finds sales say little. The SEC asks every program for a contact name and email (`SEC_USER_AGENT="Jane Smith jane@example.com"`); add it under **Keys & model**. It is only sent to the SEC. Filings are cached in `~/.hedge-fund/cache/`. Edit the fund list with `params: {funds: {Name: CIK}}` on `superinvestors`.
+
+What to expect, honestly: insider buying has historically beaten the market by about 0.4% a month on average, more for cluster and CEO buys, but it is widely known and has weakened. Copying funds' 13F "best ideas" has helped on average, with stale data. Congressional trading showed an edge in early studies and little after the 2012 STOCK Act. Hype Watch is a brake, not an engine. Paper-trade it next to `momentum-leaders` and keep it only if it earns its place. Hype Watch and the congress feed only cover recent days, so backtests test the insider and fund trackers alone.
 
 
 

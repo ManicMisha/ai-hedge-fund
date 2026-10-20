@@ -13,6 +13,8 @@ from hedge_fund.signals.lynch import LynchAgent
 from hedge_fund.signals.munger import MungerAgent
 from hedge_fund.signals.pead import PEADModel
 from hedge_fund.signals.price import LowVolatilityModel, MomentumModel, TrendModel
+from hedge_fund.signals.smart_money import CongressModel, InsiderModel, SuperinvestorModel
+from hedge_fund.signals.social import SocialWatchModel
 
 ALPHA_MODEL_REGISTRY: dict[str, type[AlphaModel]] = {
     # Quant models
@@ -20,6 +22,11 @@ ALPHA_MODEL_REGISTRY: dict[str, type[AlphaModel]] = {
     "trend": TrendModel,
     "momentum": MomentumModel,
     "low_vol": LowVolatilityModel,
+    # Copy desk: trackers of public trade filings
+    "insiders": InsiderModel,
+    "superinvestors": SuperinvestorModel,
+    "congress": CongressModel,
+    "social_watch": SocialWatchModel,
     # LLM investor agents
     "buffett": BuffettAgent,
     "munger": MungerAgent,
@@ -57,6 +64,10 @@ __all__ = [
     "TrendModel",
     "MomentumModel",
     "LowVolatilityModel",
+    "InsiderModel",
+    "SuperinvestorModel",
+    "CongressModel",
+    "SocialWatchModel",
     "ALPHA_MODEL_REGISTRY",
     "get_investment_approach",
 ]

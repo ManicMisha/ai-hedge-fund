@@ -241,3 +241,24 @@ def test_refuses_foreign_hosts_and_unmarked_or_cross_site_writes(http, dash):
     assert http("POST", "/api/funds/alpha/halt", {"reason": "x"},
                 headers={"Origin": "http://evil.example"})[0] == 403
     assert Ledger(dash.paper_root / "alpha").halted() is None
+
+
+def test_trackers_ask_for_sec_contact_details_and_validate_them(http, dash, monkeypatch):
+    monkeypatch.delenv("SEC_USER_AGENT", raising=False)
+    trackers = {**SPEC, "strategies": [{"name": "s", "models": [{"name": "insiders"}, {"name": "social_watch"}],
+                                        "blend": {"mode": "long_only", "method": "slot_weighted"}}]}
+    deploy("copycat", FundSpec(**trackers), ["AAPL"], root=dash.paper_root)
+    status, err = http("POST", "/api/funds/copycat/run", {"mode": "run"})
+    assert status == 428 and "name and email" in err["error"]
+    # Hype Watch is optional: no xAI key is not a blocker.
+    monkeypatch.setenv("SEC_USER_AGENT", "Jane Smith jane@example.com")
+    monkeypatch.delenv("XAI_API_KEY", raising=False)
+    dash._require_keys(FundSpec(**trackers))
+    # The SEC value must look like "Name email"; it is saved as given.
+    assert http("POST", "/api/keys", {"env_var": "SEC_USER_AGENT", "value": "jane"})[0] == 400
+    assert http("POST", "/api/keys", {"env_var": "SEC_USER_AGENT", "value": "Jane Smith jane@example.com"})[0] == 200
+    assert http("POST", "/api/keys", {"env_var": "BARGO_API_KEY", "value": "bg-123"})[0] == 200
+    assert dash.saved == {"SEC_USER_AGENT": "Jane Smith jane@example.com", "BARGO_API_KEY": "bg-123"}
+    state = dash.state()
+    assert {"sec_set", "bargo_set", "xai_set"} <= set(state)
+    assert json.dumps(state).count("jane@example.com") == 0  # the dashboard never echoes it back
