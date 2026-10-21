@@ -32,13 +32,15 @@ from pathlib import Path
 from typing import Callable, Iterator
 from urllib.parse import urlparse
 
+from hedge_fund import alerts
+from hedge_fund.autoplay import catch_up
 from hedge_fund.data.protocol import DataClient
-from hedge_fund.data.source import needs_data_key
 from hedge_fund.fund import Fund, FundSpec, load_spec, normalize_universe
 from hedge_fund.llm import load_api_models, provider_for
 from hedge_fund.paper import (
     deploy,
     Ledger,
+    list_deployed,
     load_deployed,
     next_session,
     NothingDue,
@@ -47,7 +49,8 @@ from hedge_fund.paper import (
     validate_fund_name,
 )
 from hedge_fund.pipeline.session import FundHalted, is_rebalance_session
-from hedge_fund.web import views
+from hedge_fund.settings import load_settings, save_settings
+from hedge_fund.web import backtests, views
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
@@ -135,12 +138,21 @@ class Dashboard:
         data: DataFactory = market_data,
         build_fund: Callable[[FundSpec], Fund] | None = None,
         save_key: Callable[[str, str], object] | None = None,
+        push: Callable[[dict], None] | None = None,
+        backtest_fund_builder: Callable[[FundSpec], Fund] | None = None,
     ) -> None:
         self.paper_root = Path(paper_root)
         self.mandates_root = Path(mandates_root)
+        home = self.paper_root.parent  # ~/.hedge-fund in real use; a temp folder in tests
+        self.research_root = home / "research"
+        self.settings_path = home / "settings.json"
+        self.sent_path = home / "alerts-sent.json"
         self.data = data
         self.build_fund = build_fund
+        self.push = push or alerts.push_phone
         self.runs = Runs()
+        self.autoplay = AutoPlay(self)
+        self.lab = backtests.BacktestRunner(self.research_root, data, backtest_fund_builder)
         if save_key is None:
             from hedge_fund.tui.keys import save_credential as save_key
         self.save_key = save_key
@@ -148,11 +160,29 @@ class Dashboard:
     # ---- reads ------------------------------------------------------------
 
     def state(self) -> dict:
-        return views.app_state(self.paper_root, self.mandates_root)
+        return {**views.app_state(self.paper_root, self.mandates_root),
+                "autoplay": {**self.autoplay.status(), "enabled": self.settings()["autoplay"]},
+                "phone_ready": alerts.ntfy_target() is not None}
 
     def fund(self, name: str) -> dict:
         directory = self._fund_dir(name)
-        return {**views.fund_detail(directory), "run": self.runs.status(name)}
+        return {**views.fund_detail(directory, self.research_root), "run": self.runs.status(name)}
+
+    def settings(self) -> dict:
+        return load_settings(self.settings_path)
+
+    def alerts(self) -> dict:
+        return {"alerts": alerts.all_alerts(list_deployed(self.paper_root), research_dir=self.research_root),
+                "settings": self.settings()["alerts"], "phone_ready": alerts.ntfy_target() is not None}
+
+    def backtest_list(self) -> dict:
+        return {"status": self.lab.status(), "runs": backtests.list_summaries(self.research_root)}
+
+    def backtest(self, run_id: str) -> dict:
+        try:
+            return backtests.load_summary(self.research_root, run_id)
+        except (OSError, ValueError) as exc:
+            raise ApiError(HTTPStatus.NOT_FOUND, "no such backtest") from exc
 
     def plan(self, name: str) -> dict:
         """What pressing Play will do, before anything trades: the session
@@ -220,9 +250,12 @@ class Dashboard:
             raise ApiError(HTTPStatus.CONFLICT, f"{name} is halted: {halted}. Resume it first.")
 
         def work() -> dict:
-            with self.data() as data:
-                record = (redo(directory, data, build_fund=self.build_fund) if mode == "redo"
-                          else tick(directory, data, build_fund=self.build_fund))
+            try:
+                with self.data() as data:
+                    record = (redo(directory, data, build_fund=self.build_fund) if mode == "redo"
+                              else tick(directory, data, build_fund=self.build_fund))
+            finally:
+                self.send_alerts(directory)
             return {"session": record.session, "nav": record.nav,
                     "traded": bool(record.executed and record.executed.fills),
                     "decided": record.decision is not None}
@@ -247,6 +280,8 @@ class Dashboard:
             raise ApiError(HTTPStatus.BAD_REQUEST, f"unknown key {env_var!r}")
         if not value or any(c in value for c in "\r\n\0") or len(value) > 500:
             raise ApiError(HTTPStatus.BAD_REQUEST, "paste the key exactly as given: one line, no spaces around it")
+        if env_var == views.NTFY_VAR and not re.fullmatch(r"[A-Za-z0-9_-]{8,64}", value):
+            raise ApiError(HTTPStatus.BAD_REQUEST, "a topic is 8 to 64 letters, numbers, dashes or underscores")
         if env_var == views.SEC_VAR and not re.fullmatch(r"[^@\s][^@]*\s+\S+@\S+\.\S+", value):
             raise ApiError(HTTPStatus.BAD_REQUEST, "the SEC wants your name and email, like: Jane Smith jane@example.com")
         self.save_key(env_var, value)
@@ -258,6 +293,79 @@ class Dashboard:
             raise ApiError(HTTPStatus.BAD_REQUEST, f"unknown model {model_id!r}")
         self.save_key(views.MODEL_VAR, model_id)
         return self.state()
+
+    def update_settings(self, body: dict) -> dict:
+        try:
+            saved = save_settings(body, self.settings_path)
+        except ValueError as exc:
+            raise ApiError(HTTPStatus.BAD_REQUEST, str(exc)) from exc
+        if body.get("autoplay") is True:
+            self.autoplay.poke()  # check straight away, not in half an hour
+        return {"settings": saved, **self.state()}
+
+    def test_alert(self) -> dict:
+        if alerts.ntfy_target() is None:
+            raise ApiError(HTTPStatus.PRECONDITION_REQUIRED, "Add a phone alert topic first.")
+        try:
+            self.push({"title": "Test alert from your AI hedge fund", "level": "info",
+                       "body": "Phone alerts work. You'll get pings like this for insider buys, pump alarms and big days."})
+        except Exception as exc:
+            raise ApiError(HTTPStatus.BAD_GATEWAY, f"Couldn't send: {exc}") from exc
+        return {"sent": True}
+
+    def check_now(self) -> dict:
+        self.autoplay.poke(force=True)
+        return self.state()
+
+    def start_backtest(self, body: dict) -> dict:
+        mandate = self._mandate_path(str(body.get("mandate", "")))
+        try:
+            spec = load_spec(mandate)
+            universe = normalize_universe(re.split(r"[\s,]+", str(body.get("universe", ""))))
+            start, end = backtests.window(int(body.get("years", 0)))
+        except (ValueError, TypeError) as exc:
+            raise ApiError(HTTPStatus.BAD_REQUEST, str(exc)) from exc
+        capital = body.get("capital")
+        if capital not in (None, ""):
+            try:
+                capital = float(capital)
+            except (TypeError, ValueError) as exc:
+                raise ApiError(HTTPStatus.BAD_REQUEST, "starting money must be a number") from exc
+            if not 0 < capital <= 1e12:
+                raise ApiError(HTTPStatus.BAD_REQUEST, "starting money must be above zero")
+            spec = spec.model_copy(update={"capital": capital})
+        self._require_keys(spec)
+        uses_ai = any(views.analyst_view(m.name)["kind"] == "ai" for s in spec.strategies for m in s.models)
+        if uses_ai and body.get("confirm_ai") is not True:
+            raise ApiError(HTTPStatus.CONFLICT, "This plan has AI analysts, so the backtest makes paid AI calls. Confirm the cost first.")
+        try:
+            return self.lab.start(spec, universe, start, end, mandate.stem)
+        except RuntimeError as exc:
+            raise ApiError(HTTPStatus.CONFLICT, str(exc)) from exc
+
+    def cancel_backtest(self) -> dict:
+        return self.lab.cancel()
+
+    # ---- background work --------------------------------------------------
+
+    def send_alerts(self, directory: Path) -> list[dict]:
+        """Phone pings for anything new; failures never break a run."""
+        try:
+            return alerts.dispatch(directory, send=self.push if self.settings()["alerts"]["phone"] and
+                                   alerts.ntfy_target() else None, sent_path=self.sent_path,
+                                   settings=self.settings(), research_dir=self.research_root)
+        except Exception:
+            return []
+
+    def catch_up_work(self, directory: Path) -> dict:
+        try:
+            with self.data() as data:
+                out = catch_up(directory, data, build_fund=self.build_fund)
+        finally:
+            self.send_alerts(directory)
+        if out["error"] and not out["played"]:
+            raise RuntimeError(out["error"])
+        return out
 
     # ---- helpers ----------------------------------------------------------
 
@@ -280,27 +388,84 @@ class Dashboard:
         return path
 
     def _require_keys(self, spec: FundSpec) -> None:
-        """Refuse a run early, by name, when a key it needs is missing: the
-        Financial Datasets key only when that is the active data source, and
-        the AI key only when the fund staffs an LLM analyst."""
-        if needs_data_key():
-            raise ApiError(HTTPStatus.PRECONDITION_REQUIRED,
-                           "Add your Financial Datasets key first (Keys & model), "
-                           "or remove DATA_SOURCE=financialdatasets to use free Yahoo prices.")
-        uses_ai = any(views.analyst_view(m.name)["kind"] == "ai"
-                      for s in spec.strategies for m in s.models)
-        model = views.current_model()
-        if uses_ai and model["key_env"] and not model["key_set"]:
-            raise ApiError(HTTPStatus.PRECONDITION_REQUIRED,
-                           f"Add your {model['provider']} key for {model['label']} first (Keys & model).")
-        needs = {env for s in spec.strategies for m in s.models for env in views.analyst_view(m.name)["needs"]}
-        if views.SEC_VAR in needs and not os.environ.get(views.SEC_VAR, "").strip():
-            raise ApiError(HTTPStatus.PRECONDITION_REQUIRED,
-                           "The trackers read SEC filings, and the SEC asks every program for a name and email. "
-                           "Add yours under Keys & model (it is only sent to the SEC).")
-        missing = sorted(env for env in needs - {views.SEC_VAR} if not os.environ.get(env, "").strip())
-        if missing:
-            raise ApiError(HTTPStatus.PRECONDITION_REQUIRED, f"Add {', '.join(missing)} first (Keys & model).")
+        """Refuse a run early, by name, when a key it needs is missing."""
+        problem = views.missing_keys(spec)
+        if problem:
+            raise ApiError(HTTPStatus.PRECONDITION_REQUIRED, problem)
+
+
+# ---------------------------------------------------------------------------
+# Auto-play: every fund caught up after each US close, while the app is open
+# ---------------------------------------------------------------------------
+
+class AutoPlay:
+    """A timer thread. Every half hour (and when switched on) it plays each
+    fund's due days, one fund at a time, through the same runs the Play
+    button uses, so the page shows progress exactly as for a manual play."""
+
+    def __init__(self, app: "Dashboard", interval: float = 1800.0) -> None:
+        self.app, self.interval = app, interval
+        self._lock = threading.Lock()
+        self._wake = threading.Event()
+        self._force = False
+        self._state: dict = {"checking": False, "last_check": None, "next_check": None, "results": []}
+        self._thread: threading.Thread | None = None
+
+    def status(self) -> dict:
+        with self._lock:
+            return {**self._state, "results": list(self._state["results"])}
+
+    def start(self, first_delay: float = 20.0) -> None:
+        if self._thread is None:
+            self._thread = threading.Thread(target=self._loop, args=(first_delay,), name="aihf-autoplay", daemon=True)
+            self._thread.start()
+
+    def poke(self, force: bool = False) -> None:
+        self._force = self._force or force
+        self._wake.set()
+
+    def _loop(self, first_delay: float) -> None:
+        self._wake.wait(first_delay)
+        while True:
+            self._wake.clear()
+            force, self._force = self._force, False
+            if force or self.app.settings()["autoplay"]:
+                self.check()
+            with self._lock:
+                self._state["next_check"] = datetime.fromtimestamp(
+                    datetime.now(timezone.utc).timestamp() + self.interval, timezone.utc).isoformat(timespec="seconds")
+            self._wake.wait(self.interval)
+
+    def check(self) -> list[dict]:
+        with self._lock:
+            if self._state["checking"]:
+                return []
+            self._state["checking"] = True
+        results = []
+        try:
+            for directory in list_deployed(self.app.paper_root):
+                name = directory.name
+                row: dict = {"fund": name}
+                try:
+                    if self.app.runs.status(name)["state"] == "running":
+                        row.update(status="busy")
+                    elif (frozen := Ledger(directory).halted()):
+                        row.update(status="frozen", message=frozen)
+                    elif (problem := views.missing_keys(load_deployed(directory).spec)):
+                        row.update(status="skipped", message=problem)
+                    else:
+                        self.app.runs.start(name, lambda d=directory: self.app.catch_up_work(d))
+                        job = self.app.runs.wait(name, timeout=6 * 3600)
+                        played = job.get("played", 0)
+                        row.update(status="failed" if job["state"] == "failed" else "played" if played else "up_to_date",
+                                   played=played, session=job.get("session"), message=job.get("message") or job.get("error"))
+                except Exception as exc:  # one broken fund must not stop the others
+                    row.update(status="failed", message=f"{type(exc).__name__}: {exc}")
+                results.append(row)
+        finally:
+            with self._lock:
+                self._state.update(checking=False, last_check=_now(), results=results)
+        return results
 
 
 # ---------------------------------------------------------------------------
@@ -308,6 +473,7 @@ class Dashboard:
 # ---------------------------------------------------------------------------
 
 _FUND_ROUTE = re.compile(r"^/api/funds/([^/]+)(?:/(plan|run|halt|resume))?$")
+_BACKTEST_ROUTE = re.compile(r"^/api/backtests/([A-Za-z0-9][A-Za-z0-9._-]*)$")
 
 
 def make_handler(app: Dashboard, port: int) -> type[BaseHTTPRequestHandler]:
@@ -351,6 +517,13 @@ def make_handler(app: Dashboard, port: int) -> type[BaseHTTPRequestHandler]:
         def _get(self, path: str) -> dict:
             if path == "/api/state":
                 return app.state()
+            if path == "/api/alerts":
+                return app.alerts()
+            if path == "/api/backtests":
+                return app.backtest_list()
+            bt = _BACKTEST_ROUTE.match(path)
+            if bt:
+                return app.backtest(bt.group(1))
             match = _FUND_ROUTE.match(path)
             if match:
                 name, action = match.groups()
@@ -369,6 +542,16 @@ def make_handler(app: Dashboard, port: int) -> type[BaseHTTPRequestHandler]:
                 return app.set_key(body)
             if path == "/api/model":
                 return app.set_model(body)
+            if path == "/api/settings":
+                return app.update_settings(body)
+            if path == "/api/alerts/test":
+                return app.test_alert()
+            if path == "/api/autoplay/check":
+                return app.check_now()
+            if path == "/api/backtests":
+                return app.start_backtest(body)
+            if path == "/api/backtests/cancel":
+                return app.cancel_backtest()
             match = _FUND_ROUTE.match(path)
             if match:
                 name, action = match.groups()
@@ -442,6 +625,7 @@ def serve(port: int = 8000, open_browser: bool = True) -> None:
     from hedge_fund.paths import ensure_mandates_dir, PAPER_DIR
 
     app = Dashboard(PAPER_DIR, ensure_mandates_dir())
+    app.autoplay.start()
     try:
         server = make_server(app, port)
     except OSError as exc:

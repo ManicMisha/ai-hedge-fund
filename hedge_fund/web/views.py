@@ -19,7 +19,7 @@ from hedge_fund.paper import Ledger, list_deployed, load_deployed
 from hedge_fund.pipeline.models import DecisionRecord, StrategyRecord
 from hedge_fund.pipeline.session import SessionRecord
 from hedge_fund.signals import ALPHA_MODEL_REGISTRY, LLMAgent
-from hedge_fund.web import game
+from hedge_fund.web import game, scorecard
 
 DATA_KEY = "FINANCIAL_DATASETS_API_KEY"
 MODEL_VAR = "HEDGE_FUND_LLM_MODEL"
@@ -43,6 +43,7 @@ ANALYSTS = {
     "social_watch": ("Hype Watch", "Warns when X looks like a pump. Never buys"),
 }
 
+NTFY_VAR = "NTFY_TOPIC"
 SEC_VAR = "SEC_USER_AGENT"
 BARGO_VAR = "BARGO_API_KEY"
 XAI_VAR = "XAI_API_KEY"
@@ -95,7 +96,29 @@ def _model_view(model_id: str, label: str, provider: str | None) -> dict:
 
 def allowed_key_vars() -> set[str]:
     """The only environment variables the dashboard may write."""
-    return {DATA_KEY, SEC_VAR, BARGO_VAR, *PROVIDER_ENV_VARS.values()}
+    return {DATA_KEY, SEC_VAR, BARGO_VAR, NTFY_VAR, *PROVIDER_ENV_VARS.values()}
+
+
+def missing_keys(spec: FundSpec) -> str | None:
+    """Why this fund can't run right now, in plain words, or None. The
+    Financial Datasets key only when that is the active data source, the AI
+    key only when the fund staffs an LLM analyst, the SEC contact only for
+    the trackers that read SEC filings."""
+    if needs_data_key():
+        return ("Add your Financial Datasets key first (Keys & model), "
+                "or remove DATA_SOURCE=financialdatasets to use free Yahoo prices.")
+    uses_ai = any(analyst_view(m.name)["kind"] == "ai" for s in spec.strategies for m in s.models)
+    model = current_model()
+    if uses_ai and model["key_env"] and not model["key_set"]:
+        return f"Add your {model['provider']} key for {model['label']} first (Keys & model)."
+    needs = {env for s in spec.strategies for m in s.models for env in analyst_view(m.name)["needs"]}
+    if SEC_VAR in needs and not os.environ.get(SEC_VAR, "").strip():
+        return ("The trackers read SEC filings, and the SEC asks every program for a name and email. "
+                "Add yours under Keys & model (it is only sent to the SEC).")
+    missing = sorted(env for env in needs - {SEC_VAR} if not os.environ.get(env, "").strip())
+    if missing:
+        return f"Add {', '.join(missing)} first (Keys & model)."
+    return None
 
 
 def mandates(root: Path) -> list[dict]:
@@ -180,7 +203,7 @@ def fund_summary(directory: Path) -> dict:
     }
 
 
-def fund_detail(directory: Path) -> dict:
+def fund_detail(directory: Path, research_root: Path | None = None) -> dict:
     directory = Path(directory)
     deployed = load_deployed(directory)
     ledger = Ledger(directory)
@@ -189,6 +212,7 @@ def fund_detail(directory: Path) -> dict:
     capital = spec.capital
     latest = records[-1] if records else None
     navs = [r.nav for r in records]
+    research_root = research_root if research_root is not None else scorecard.RESEARCH_DIR
 
     return {
         **fund_summary(directory),
@@ -205,6 +229,8 @@ def fund_detail(directory: Path) -> dict:
         "view": _latest_view(records),
         "pending": _decision_targets(latest.decision) if latest and latest.decision else None,
         "log": _log(records, ledger.events()),
+        "scorecard": scorecard.scorecard(records, ledger.events(), capital, spec.name,
+                                         scorecard.backtests_for(research_root)),
     }
 
 

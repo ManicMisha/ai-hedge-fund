@@ -189,7 +189,7 @@ class SuperinvestorModel(_SecTracker):
         _, company_name = company
 
         votes: list[tuple[str, float, str]] = []
-        failures = 0
+        failures = fresh = 0
         for fund, cik in self._funds.items():
             try:
                 filings, _ = self.sec().filings(cik, ("13F-HR",))
@@ -216,6 +216,7 @@ class SuperinvestorModel(_SecTracker):
                 before = _position(previous, company_name)[0]
                 if before <= 0:
                     score += 0.2
+                    fresh += 1
                     notes.append("new this quarter")
                 elif shares >= before * 1.10:
                     score += 0.2
@@ -235,7 +236,7 @@ class SuperinvestorModel(_SecTracker):
         return Signal(
             model_name=self.name, ticker=ticker, date=date, value=value,
             reasoning="; ".join(v[2] for v in votes) + ". 13F filings are up to 4.5 months old.",
-            components={"holders": float(len(holders))},
+            components={"holders": float(len(holders)), "new_positions": float(fresh)},
         )
 
 

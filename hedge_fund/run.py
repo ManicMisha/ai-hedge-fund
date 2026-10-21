@@ -35,6 +35,11 @@ Usage::
         The dashboard in your browser at http://localhost:8000: your paper
         funds, the analysts' views, the trade log, Play / Halt controls.
 
+    aihf play-all
+        Catch every paper fund up to the latest finished day and send any
+        new phone alerts. For Windows Task Scheduler or cron, so funds play
+        even when the dashboard isn't open. Appends to ~/.hedge-fund/autoplay.log.
+
 A mandate is the desk — strategies, staff, risk, capital, cadence — and
 never names tickers; the universe is fixed when a fund is deployed (paper)
 or given per study (backtest).
@@ -97,6 +102,10 @@ def main() -> None:
         serve(port=args.port, open_browser=not args.no_browser)
         return
 
+    if args.command == "play-all":
+        _play_all()
+        return
+
     console = Console(stderr=True)  # status + summary on stderr; stdout stays pure JSON
     try:
         if args.command == "backtest":
@@ -147,6 +156,13 @@ def _parser() -> argparse.ArgumentParser:
     )
     web.add_argument("--port", type=int, default=8000, help="port to serve on (default: 8000)")
     web.add_argument("--no-browser", action="store_true", help="don't open a browser tab")
+
+    commands.add_parser(
+        "play-all", help="catch every paper fund up and send alerts",
+        description="Play every paper fund's due days (up to 30 each), skip frozen funds "
+        "and funds missing a key, then send any new phone alerts. Safe to run as often as "
+        "you like: a fund that's up to date does nothing.",
+    )
 
     paper = commands.add_parser("paper", help="deploy and advance a paper fund")
     actions = paper.add_subparsers(dest="action", required=True)
@@ -230,6 +246,11 @@ def _backtest(args, parser: argparse.ArgumentParser, console: Console) -> None:
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     saved = RESEARCH_DIR / f"{spec.name}-{result.start}-{result.end}-{stamp}.json"
     saved.write_text(payload)
+    # A small summary beside it, so the dashboard and the go-live scorecard can see this run.
+    import json as _json
+    from hedge_fund.web.backtests import summarize
+    (RESEARCH_DIR / f"{saved.stem}.summary.json").write_text(
+        _json.dumps(summarize(result, Path(args.mandate).stem, saved.stem)))
     if args.out:
         Path(args.out).write_text(payload)
     m = result.metrics
@@ -240,6 +261,45 @@ def _backtest(args, parser: argparse.ArgumentParser, console: Console) -> None:
         f"sharpe {m.sharpe_ratio:.2f}  ·  max drawdown {m.max_drawdown_pct:.1%}"
     )
     console.print(f"[dim]saved to {saved}[/]")
+
+
+# ---------------------------------------------------------------------------
+# play-all
+# ---------------------------------------------------------------------------
+
+def _play_all() -> None:
+    from contextlib import contextmanager
+
+    from hedge_fund import alerts
+    from hedge_fund.autoplay import describe, play_all
+    from hedge_fund.paths import USER_DIR
+    from hedge_fund.settings import load_settings
+    from hedge_fund.web.views import missing_keys
+
+    @contextmanager
+    def data():
+        with FDClient() as raw:
+            yield CachedDataClient(raw)
+
+    settings = load_settings()
+    phone = settings["alerts"]["phone"] and alerts.ntfy_target() is not None
+
+    def after(directory: Path) -> None:
+        sent = alerts.dispatch(directory, send=alerts.push_phone if phone else None, settings=settings)
+        for alert in sent:
+            print(f"  alert sent: {alert['title']}")
+
+    stamp = datetime.now().isoformat(timespec="seconds")
+    lines = [f"[{stamp}] {describe(row)}" for row in play_all(PAPER_DIR, data, check_keys=missing_keys, after_fund=after)]
+    if not lines:
+        lines = [f"[{stamp}] no paper funds yet"]
+    print("\n".join(lines))
+    log = USER_DIR / "autoplay.log"
+    try:
+        with log.open("a", encoding="utf-8") as fh:
+            fh.write("\n".join(lines) + "\n")
+    except OSError:
+        pass
 
 
 # ---------------------------------------------------------------------------

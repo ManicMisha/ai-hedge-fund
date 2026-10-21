@@ -67,6 +67,14 @@ Opens an arcade-style dashboard at http://localhost:8000 for your paper funds: e
 
 The home screen opens on **High Scores**: every fund ranked by how far it is ahead of the S&P 500 over its own days, with its return, worst drop and days played. Funds under 21 days are marked *early*, because that is still mostly luck. Each fund earns XP (10 per day played, 5 more per day it is ahead of the S&P 500, 25 per trophy; trading more earns nothing), levels up from Intern to Legend, and collects 16 trophies in its Trophy room, from Opening Bell to Boss Slayer (ahead of the S&P 500 after 63+ days). Level-ups and new trophies get a fanfare; a played day counts the fund value up and shows the gain or loss. Sound effects are made in the browser; turn them off with the ♪ button. Animations respect your system's reduce-motion setting.
 
+**Auto-play.** Switch it on from the home screen and every fund plays its finished days by itself, checking every 30 minutes while the dashboard is open (missed days are caught up in order, up to 30 per check). Frozen funds and funds missing a key are skipped, with the reason shown. To play even when the dashboard is closed, run `aihf play-all` from Windows Task Scheduler (the dashboard's *Window closed?* button has the one-line command); it logs to `~/.hedge-fund/autoplay.log`.
+
+**Alerts.** The Alerts button lists what changed: insiders or a famous fund buying, Congress buying, Hype Watch warnings, pump alarms, the market shield going up or down, ±3% days, drawdowns past 10/20/30%, a fund freezing, and a fund passing the go-live check. Phone alerts are free through the [ntfy](https://ntfy.sh) app: subscribe to a private topic and save the same topic in Alerts (`NTFY_TOPIC`). Pick which kinds to receive. Desktop pop-ups work while the tab is open.
+
+**Go-live check.** Each fund shows eight checks a paper record should pass before real money is even considered: six months played, ahead of the S&P 500, still ahead after estimated trading costs (0.1% per trade), smaller drops, a better Sharpe ratio, ahead in most months, no recent failures, and a 2+ year backtest of the same plan that agrees. It is information only: this app has no way to trade real money.
+
+**Backtest lab.** Replay any plan over 1, 3, 5 or 10 years and watch it race the S&P 500 day by day, then see return, worst drop and Sharpe against the index. Results are saved in `~/.hedge-fund/research/` beside terminal backtests and feed the go-live check. Plans with AI analysts ask you to confirm the estimated number of paid AI calls first.
+
 It serves this computer only (127.0.0.1) and needs no extra install. `--port 8080` to move it, `--no-browser` to skip opening a tab. Backtesting is still in the terminal app.
 
 ### Free data

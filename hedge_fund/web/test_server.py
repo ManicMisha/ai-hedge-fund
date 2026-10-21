@@ -277,3 +277,82 @@ def test_state_ranks_funds_and_carries_their_game_progress(http, dash, clock):
     assert alpha["game"]["xp"] > 0 and any(b["id"] == "opening_bell" and b["unlocked"] for b in alpha["game"]["badges"])
     beta = next(f for f in state["funds"] if f["name"] == "beta")
     assert beta["place"] is None and beta["game"]["level"] == 1
+
+
+# ---------------------------------------------------------------------------
+# auto-play, alerts, settings, backtests
+# ---------------------------------------------------------------------------
+
+def test_autoplay_catches_every_fund_up_and_reports_why_it_skipped(dash, clock, monkeypatch):
+    from hedge_fund.paper import tick
+    directory = deploy("alpha", FundSpec(**SPEC), ["AAPL"], root=dash.paper_root)
+    deploy("frozen", FundSpec(**SPEC), ["AAPL"], root=dash.paper_root)
+    Ledger(dash.paper_root / "frozen").halt("paused")
+    clock("2024-06-04")
+    tick(directory, FakeDataClient(SERIES), build_fund=build_fund)
+    clock("2024-06-08")
+    rows = {r["fund"]: r for r in dash.autoplay.check()}
+    assert rows["alpha"]["status"] == "played" and rows["alpha"]["played"] == 4
+    assert rows["frozen"]["status"] == "frozen"
+    assert Ledger(directory).sessions()[-1] == "2024-06-07"
+    state = dash.state()["autoplay"]
+    assert state["enabled"] is False and state["last_check"] and state["checking"] is False
+    assert dash.autoplay.check()[0]["status"] == "up_to_date"
+
+
+def test_settings_and_alert_endpoints(http, dash, monkeypatch):
+    status, out = http("POST", "/api/settings", {"autoplay": True, "alerts": {"phone": True, "kinds": ["pump"]}})
+    assert status == 200 and out["settings"]["autoplay"] is True and out["autoplay"]["enabled"] is True
+    assert http("POST", "/api/settings", {"autoplay": "please"})[0] == 400
+    assert http("POST", "/api/keys", {"env_var": "NTFY_TOPIC", "value": "short"})[0] == 400
+    assert http("POST", "/api/keys", {"env_var": "NTFY_TOPIC", "value": "aihf-k3j4h5g6"})[0] == 200
+    monkeypatch.delenv("NTFY_TOPIC", raising=False)
+    assert http("POST", "/api/alerts/test", {})[0] == 428
+    pushed = []
+    dash.push = pushed.append
+    monkeypatch.setenv("NTFY_TOPIC", "aihf-k3j4h5g6")
+    assert http("POST", "/api/alerts/test", {})[0] == 200 and "Test alert" in pushed[0]["title"]
+    status, feed = http("GET", "/api/alerts")
+    assert status == 200 and feed["alerts"] == [] and feed["phone_ready"] is True and feed["settings"]["kinds"] == ["pump"]
+
+
+def test_a_failed_manual_play_pings_the_phone(dash, clock, monkeypatch):
+    directory = deploy("alpha", FundSpec(**SPEC), ["AAPL"], root=dash.paper_root)
+    monkeypatch.setenv("NTFY_TOPIC", "aihf-k3j4h5g6")
+    dash.update_settings({"alerts": {"phone": True}})
+    pushed = []
+    dash.push = pushed.append
+    dash.send_alerts(directory)  # first sight: history marked, nothing sent
+    clock("2024-06-04")
+
+    def broken(spec):
+        raise RuntimeError("bad day")
+    dash.build_fund = broken
+    dash.start_run("alpha", {"mode": "run"})
+    assert dash.runs.wait("alpha")["state"] == "failed"
+    Ledger(directory).log_event("tick_failed", session="2024-06-03", error="bad day")
+    dash.send_alerts(directory)
+    assert [a["kind"] for a in pushed] == ["frozen"]
+
+
+def test_backtest_routes(http, dash, clock, tmp_path):
+    clock("2024-06-22")
+    lab = Dashboard(dash.paper_root, dash.mandates_root, data=fake_data, build_fund=build_fund,
+                    backtest_fund_builder=build_fund, save_key=lambda *a: None)
+    status = lab.start_backtest({"mandate": "solo", "universe": "AAPL", "years": 1})
+    assert status["state"] == "running"
+    done = lab.lab.wait()
+    assert done["state"] == "done" and done["result"]["mandate"] == "paper-fund"
+    listing = lab.backtest_list()
+    assert listing["runs"][0]["id"] == done["result"]["id"]
+    assert len(lab.backtest(done["result"]["id"])["curve"]["nav"]) == done["total"]
+    for bad in ({"mandate": "solo", "universe": "AAPL", "years": 2}, {"mandate": "nope", "universe": "AAPL", "years": 1}):
+        with pytest.raises(Exception):
+            lab.start_backtest(bad)
+    ai_plan = {**SPEC, "strategies": [{"name": "s", "models": [{"name": "buffett"}], "blend": {"mode": "long_only"}}]}
+    (dash.mandates_root / "brainy.yaml").write_text(yaml.safe_dump(ai_plan))
+    from hedge_fund.web.server import ApiError
+    with pytest.raises(ApiError) as exc:
+        lab.start_backtest({"mandate": "brainy", "universe": "AAPL", "years": 1})
+    assert exc.value.status == 409 and "AI" in exc.value.message
+    assert http("GET", "/api/backtests")[0] == 200 and http("GET", "/api/backtests/..%2Fx")[0] == 404

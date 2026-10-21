@@ -266,6 +266,72 @@ h1, h2, h3, .disp { font-family: var(--display); font-weight: 600; letter-spacin
 body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 60;
   background: repeating-linear-gradient(0deg, rgba(0, 0, 0, .14) 0 1px, transparent 1px 3px); opacity: .5; }
 
+/* alerts */
+.count { display: inline-block; min-width: 18px; padding: 0 4px; margin-left: 4px; background: var(--dmg); color: #fff; font-size: 11px; line-height: 18px; text-align: center; }
+.feed { display: grid; gap: 8px; max-height: 46vh; overflow: auto; margin-top: 12px; }
+.alert { display: grid; grid-template-columns: 88px 1fr; gap: 10px; padding: 10px; background: #140f27; border: 2px solid var(--edge); border-left-width: 6px; }
+.alert.good { border-left-color: var(--hp); } .alert.warn { border-left-color: var(--gold); } .alert.bad { border-left-color: var(--dmg); } .alert.info { border-left-color: var(--mana); }
+.alert.new { background: linear-gradient(90deg, rgba(255, 201, 60, .1), transparent 50%), #140f27; }
+.alert .when { font-size: 11px; color: var(--faint); }
+.alert .kind { font-family: var(--display); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.alert .t { font-family: var(--display); font-size: 15px; line-height: 1.2; }
+.alert .b { font-size: 12px; color: var(--muted); margin-top: 2px; overflow-wrap: anywhere; }
+.checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px 12px; margin-top: 8px; font-size: 13px; }
+.checks label { display: flex; gap: 8px; align-items: center; cursor: pointer; }
+.checks input, .switch input { accent-color: var(--gold); width: 16px; height: 16px; }
+.sub-h { font-family: var(--display); font-size: 16px; margin: 18px 0 2px; }
+code.cmd { display: block; background: #0c0918; border: 2px solid var(--edge); padding: 10px 12px; font-size: 12px; overflow-wrap: anywhere; user-select: all; margin: 8px 0; }
+
+/* auto-play strip */
+.autoplay { display: grid; grid-template-columns: auto 1fr auto; gap: 16px; align-items: center; margin-bottom: 22px; }
+.autoplay .state { font-family: var(--display); font-size: 20px; letter-spacing: .08em; }
+.autoplay .state.on { color: var(--hp); } .autoplay .state.off { color: var(--faint); }
+.autoplay .state.on::before { content: "● "; animation: blink 1.4s steps(2) infinite; }
+.autoplay .info { font-size: 12px; color: var(--muted); min-width: 0; }
+.autoplay .info b { color: var(--ink); font-weight: 500; }
+.autoplay .btns { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+
+/* go-live check */
+.golive header .score { font-family: var(--display); font-size: 22px; }
+.golive .list { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+.check { display: grid; grid-template-columns: 28px 1fr; gap: 8px; padding: 10px; background: #140f27; border: 2px solid var(--edge); }
+.check .mark { font-family: var(--display); font-size: 20px; line-height: 1; }
+.check.ok { border-color: #1f7a4c; } .check.ok .mark { color: var(--hp); }
+.check.no .mark { color: var(--faint); }
+.check .nm { font-family: var(--display); font-size: 15px; line-height: 1.2; }
+.check .dt { font-size: 12px; color: var(--ink); }
+.check .why { font-size: 11px; color: var(--muted); }
+.check .mini { margin-top: 5px; } .check .mini > i { background: var(--gold); }
+.golive .verdict { margin-top: 12px; font-size: 12px; color: var(--muted); }
+.golive .verdict.pass { color: var(--hp); }
+
+/* backtest lab */
+.lab { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 18px; margin-bottom: 18px; }
+.lab .field:first-of-type { margin-top: 4px; }
+.years { display: flex; gap: 6px; flex-wrap: wrap; }
+.lab .foot, .race-foot { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
+.years .tab { min-width: 54px; }
+.race-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+.race-stats .k { font-size: 11px; color: var(--muted); font-family: var(--display); letter-spacing: .1em; text-transform: uppercase; }
+.race-stats .v { font-family: var(--display); font-size: 22px; }
+.progress { height: 10px; background: #0c0918; border: 2px solid var(--edge); margin-top: 10px; }
+.progress > i { display: block; height: 100%; background: var(--gold); transition: width .3s; }
+.caveats { margin: 12px 0 0; padding-left: 18px; font-size: 12px; color: var(--muted); display: grid; gap: 4px; }
+.verdict-big { font-family: var(--display); font-size: 20px; margin-top: 12px; }
+.runs table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.runs th { text-align: left; font-family: var(--display); font-weight: 500; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); padding: 6px 8px; border-bottom: 2px solid var(--edge); white-space: nowrap; }
+.runs td { padding: 8px; border-bottom: 2px dashed #2b2450; }
+.runs tr[data-run] { cursor: pointer; } .runs tr[data-run]:hover td { background: var(--panel-2); }
+.runs .r { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+@media (max-width: 960px) { .lab { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 560px) {
+  .autoplay { grid-template-columns: 1fr; }
+  .autoplay .btns { justify-content: flex-start; }
+  .race-stats { grid-template-columns: 1fr 1fr; }
+  .runs .hide-sm { display: none; }
+  .alert { grid-template-columns: 1fr; gap: 4px; }
+}
+
 @media (max-width: 960px) {
   .stats { grid-template-columns: 1fr 1fr; }
   .grid2 { grid-template-columns: minmax(0, 1fr); }
@@ -489,10 +555,225 @@ function nextCheer() {
   }
 }
 
+/* ------------------------------------------------------------------ alerts */
+const KIND_LABELS = { insider: "Insider buying", fund_buy: "Famous fund buying", congress: "Congress buying", hype: "Hype warning",
+  pump: "Pump alarm", shield: "Market shield", big_day: "Big days (±3%)", drawdown: "Drawdowns", frozen: "Fund froze", golive: "Go-live passed" };
+function loadSeenAlerts() { try { return JSON.parse(localStorage.getItem("aihf-alerts-seen") || "null"); } catch { return null; } }
+function saveSeenAlerts(ids) { try { localStorage.setItem("aihf-alerts-seen", JSON.stringify(ids.slice(0, 300))); } catch { /* fine */ } }
+function unreadAlerts() {
+  const list = S.alerts?.alerts || [], seen = new Set(S.seenAlerts || []);
+  return list.filter((a) => !seen.has(a.id));
+}
+async function pollAlerts() {
+  let data; try { data = await api("/api/alerts"); } catch { return; }
+  const first = S.alerts == null;
+  const known = new Set((S.alerts?.alerts || []).map((a) => a.id));
+  S.alerts = data;
+  if (S.seenAlerts == null) {
+    S.seenAlerts = loadSeenAlerts();
+    if (S.seenAlerts == null) { S.seenAlerts = data.alerts.map((a) => a.id); saveSeenAlerts(S.seenAlerts); } // first visit: no flood
+  }
+  if (!first) {
+    const fresh = data.alerts.filter((a) => !known.has(a.id) && !(S.seenAlerts || []).includes(a.id));
+    fresh.slice(0, 3).forEach((a, i) => setTimeout(() => {
+      toast(`${a.title}`);
+      if (a.level === "bad") SFX.error(); else SFX.coin();
+      try { if ("Notification" in window && Notification.permission === "granted") new Notification(a.title, { body: a.body, tag: a.id }); } catch { /* fine */ }
+    }, i * 1600));
+  }
+  const bell = $("#bell"); if (bell) bell.outerHTML = bellButton();
+}
+function bellButton() {
+  const n = S.alerts ? unreadAlerts().length : 0;
+  return `<button id="bell" class="btn small ghost" data-act="alerts" aria-label="Alerts${n ? `, ${n} new` : ""}">Alerts${n ? `<span class="count">${n > 99 ? "99+" : n}</span>` : ""}</button>`;
+}
+function alertRow(a, fresh) {
+  return `<div class="alert ${esc(a.level)} ${fresh ? "new" : ""}"><div><div class="kind">${esc(a.label)}</div><div class="when">${day(a.session)}</div></div>
+    <div style="min-width:0"><div class="t">${esc(a.title)}</div><div class="b">${esc(a.fund)} · ${esc(a.body)}</div></div></div>`;
+}
+function alertsModal(error = "", note = "") {
+  const d = S.alerts || { alerts: [], settings: { phone: false, kinds: Object.keys(KIND_LABELS) }, phone_ready: false };
+  const unread = new Set(unreadAlerts().map((a) => a.id));
+  S.seenAlerts = [...new Set([...d.alerts.map((a) => a.id), ...(S.seenAlerts || [])])]; saveSeenAlerts(S.seenAlerts);
+  const desk = !("Notification" in window) ? "Not supported in this browser" : Notification.permission === "granted" ? "On while this tab is open" : Notification.permission === "denied" ? "Blocked in your browser settings" : "";
+  modal(`<h3>Alerts</h3><p class="muted" style="margin:0">Pings when something changes: insiders or a famous fund buying, a pump alarm, the market shield, a big day, a fund freezing.</p>
+    <div class="feed">${d.alerts.length ? d.alerts.slice(0, 60).map((a) => alertRow(a, unread.has(a.id))).join("") : `<div class="empty">No alerts yet. They appear as your funds play days.</div>`}</div>
+    <div class="sub-h">Phone alerts</div>
+    <p class="muted" style="margin:0;font-size:12px">Free, through the ntfy app (iPhone or Android): install it, tap <b>+</b>, and subscribe to the topic below. Anyone who knows the topic can read your alerts, so keep the random one.</p>
+    <form id="alerts-form">
+      <div class="field"><label class="label" for="ntfy">Topic</label>
+        <input id="ntfy" autocomplete="off" spellcheck="false" placeholder="${d.phone_ready ? "Saved ✓ (type to replace)" : ""}" value="${d.phone_ready ? "" : esc(randomTopic())}">
+        <span class="hint ${d.phone_ready ? "ok" : ""}">${d.phone_ready ? "Saved. Your phone gets alerts while auto-play or Play runs." : "Subscribe to this exact name in the ntfy app, then Save."}</span></div>
+      <label class="switch" style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" id="phone-on" ${d.settings.phone ? "checked" : ""}> Send alerts to my phone</label>
+      <div class="sub-h" style="font-size:14px">Which alerts</div>
+      <div class="checks">${Object.entries(KIND_LABELS).map(([k, label]) => `<label><input type="checkbox" name="kind" value="${k}" ${d.settings.kinds.includes(k) ? "checked" : ""}> ${esc(label)}</label>`).join("")}</div>
+      <div class="sub-h" style="font-size:14px">Desktop pop-ups</div>
+      <p class="muted" style="margin:4px 0 0;font-size:12px">${desk || `<button type="button" class="btn small" data-act="desk-notify">Turn on pop-ups</button>`}</p>
+      ${note ? `<div class="trim" style="color:var(--hp)">${esc(note)}</div>` : ""}${error ? `<div class="error">${esc(error)}</div>` : ""}
+      <div class="foot"><button type="button" class="btn ghost" data-act="close">Close</button><button type="button" class="btn" data-act="test-alert">Send test</button><button class="btn gold" type="submit">Save</button></div>
+    </form>`);
+  const bell = $("#bell"); if (bell) bell.outerHTML = bellButton();
+  $("#alerts-form").addEventListener("submit", async (ev) => { ev.preventDefault(); await saveAlertSettings(); });
+}
+async function saveAlertSettings(thenTest = false) {
+  try {
+    const topic = $("#ntfy").value.trim();
+    if (topic) await api("/api/keys", { env_var: "NTFY_TOPIC", value: topic });
+    const kinds = [...document.querySelectorAll("input[name=kind]:checked")].map((x) => x.value);
+    await api("/api/settings", { alerts: { phone: $("#phone-on").checked, kinds } });
+    await pollAlerts();
+    if (thenTest) { await api("/api/alerts/test", {}); return alertsModal("", "Test sent. Check your phone."); }
+    alertsModal("", "Saved.");
+  } catch (e) { alertsModal(e.message); }
+}
+function randomTopic() {
+  const bytes = new Uint8Array(9); crypto.getRandomValues(bytes);
+  return "aihf-" + [...bytes].map((b) => "abcdefghijkmnpqrstuvwxyz23456789"[b % 32]).join("");
+}
+
+/* --------------------------------------------------------------- auto-play */
+function autoplayPanel() {
+  const ap = S.app?.autoplay; if (!ap || !(S.app.funds || []).length) return "";
+  const when = (iso) => iso ? new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "–";
+  const res = (ap.results || []).filter((r) => r.status !== "up_to_date");
+  const summary = ap.checking ? "<b>Checking your funds now…</b>"
+    : ap.last_check ? `Last check ${when(ap.last_check)}: ${res.length ? res.map((r) => `<b>${esc(r.fund)}</b> ${r.status === "played" ? `played ${r.played} day${r.played === 1 ? "" : "s"}` : esc(r.status === "skipped" ? "needs a key" : r.status)}`).join(" · ") : "everything up to date"}`
+    : ap.enabled ? "First check in a moment." : "";
+  return `<section class="frame autoplay"><div class="state ${ap.enabled ? "on" : "off"}">AUTO-PLAY ${ap.enabled ? "ON" : "OFF"}</div>
+    <div class="info">${ap.enabled ? "Plays every fund's finished days automatically, every 30 minutes while this window is open." : "Turn on to play every fund automatically after each US trading day, so the track record builds without you."}
+      ${summary ? `<div>${summary}</div>` : ""}</div>
+    <div class="btns">${ap.enabled ? `<button class="btn small" data-act="check-now" ${ap.checking ? "disabled" : ""}>Check now</button>` : ""}
+      <button class="btn small ghost" data-act="scheduler">Window closed?</button>
+      <button class="btn small ${ap.enabled ? "red" : "green"}" data-act="autoplay-toggle">${ap.enabled ? "Turn off" : "Turn on"}</button></div></section>`;
+}
+function schedulerModal() {
+  modal(`<h3>Play even when this window is closed</h3>
+    <p class="muted">Auto-play here only runs while the dashboard is open. To play every afternoon on its own, ask Windows to run it. Paste this into PowerShell once:</p>
+    <code class="cmd">schtasks /Create /SC DAILY /ST 15:30 /TN "AI Hedge Fund auto-play" /TR "cmd /c aihf play-all" /F</code>
+    <p class="muted" style="font-size:12px">It runs at 3:30pm Gold Coast time, after the US day has finished and its prices are final. Your computer needs to be on (asleep is fine if "wake to run" is set in Task Scheduler). Missed days are caught up next time. A log goes to your .hedge-fund folder, autoplay.log. To stop it: <code>schtasks /Delete /TN "AI Hedge Fund auto-play" /F</code></p>
+    <div class="foot"><button class="btn gold" data-act="close">Got it</button></div>`);
+}
+
+/* ------------------------------------------------------------- go-live check */
+function goLivePanel(f) {
+  const c = f.scorecard; if (!c) return "";
+  return `<section class="frame golive" style="margin-bottom:18px"><header><h3>Go-live check</h3><span class="score ${c.all_passed ? "up" : "warn"}">${c.passed} / ${c.total}</span></header>
+    <div class="list">${c.checks.map((k) => `<div class="check ${k.ok ? "ok" : "no"}"><div class="mark">${k.ok ? "✔" : "·"}</div>
+      <div style="min-width:0"><div class="nm">${esc(k.name)}</div><div class="dt">${esc(k.detail)}</div><div class="why">${esc(k.why)}</div>
+      ${!k.ok && k.progress ? `<div class="mini"><i style="width:${(k.progress[0] / k.progress[1] * 100).toFixed(0)}%"></i></div>` : ""}</div></div>`).join("")}</div>
+    <p class="verdict ${c.all_passed ? "pass" : ""}">${c.all_passed
+      ? "Passed every check on paper. That is a minimum bar, not a guarantee. This app only paper trades; if you ever use real money, start small and talk to a licensed financial adviser."
+      : "The bar a fund should clear on paper before real money is even considered. Information only: this app never trades real money."}</p></section>`;
+}
+
+/* ------------------------------------------------------------ backtest lab */
+async function openLab(runId = null) {
+  S.lab = { form: S.lab?.form || {}, viewing: runId, data: null, run: null };
+  try { S.lab.data = await api("/api/backtests"); if (runId) S.lab.run = await api(`/api/backtests/${encodeURIComponent(runId)}`); }
+  catch (e) { toast(e.message); }
+  S.fund = null; render(); window.scrollTo({ top: 0 });
+  if (S.lab.data?.status?.state === "running") pollLab();
+}
+function labPlanOptions() { return (S.app.mandates || []).filter((m) => !m.error); }
+function renderLab() {
+  $("#actions").innerHTML = "";
+  const L = S.lab, st = L.data?.status || { state: "idle" }, ms = labPlanOptions();
+  const form = L.form;
+  const plan = ms.find((m) => m.file === form.mandate) || ms[0];
+  if (plan && !form.mandate) form.mandate = plan.file;
+  if (plan && !form.universe) form.universe = SUGGEST_STOCKS[plan.file] || "";
+  form.years ||= 3;
+  const running = st.state === "running";
+  const ai = plan ? plan.strategies.reduce((n, s) => n + s.analysts.filter((a) => a.kind === "ai").length, 0) : 0;
+  const tickers = (form.universe || "").split(/[\s,]+/).filter(Boolean).length;
+  const perYear = plan ? { daily: 252, weekly: 52, monthly: 12 }[plan.rebalance] || 12 : 12;
+  const calls = ai * tickers * perYear * form.years;
+  const show = running || st.state === "failed" || st.state === "cancelled" ? st : L.run;
+  const runs = L.data?.runs || [];
+  $("#app").innerHTML = `${topbar(`<button class="btn small" data-act="home">◀ Saves</button>`)}
+    <div class="hud"><h2>Backtest lab</h2><span class="muted" style="font-size:12px">Replay a plan over past years and race it against the S&amp;P 500.</span></div>
+    <section class="lab">
+      <div class="frame"><header><h3>Set up a run</h3></header>
+        <form id="lab-form">
+          <div class="field"><label class="label" for="lab-plan">Plan</label><select id="lab-plan" ${running ? "disabled" : ""}>${ms.map((m) => `<option value="${esc(m.file)}" ${m.file === form.mandate ? "selected" : ""}>${esc(m.name)}</option>`).join("")}</select>
+            <span class="hint">${plan ? esc(plan.strategies.map((s) => s.analysts.map((a) => a.name).join(", ")).join(" · ")) + ` · trades ${esc(plan.rebalance)}` : ""}</span></div>
+          <div class="field"><label class="label" for="lab-stocks">Stocks</label><input id="lab-stocks" value="${esc(form.universe)}" placeholder="e.g. AAPL, MSFT, NVDA" ${running ? "disabled" : ""}></div>
+          <div class="field"><span class="label">How far back</span><div class="years" role="radiogroup">${[1, 3, 5, 10].map((y) => `<button type="button" class="tab" role="radio" aria-checked="${form.years === y}" aria-selected="${form.years === y}" data-years="${y}" ${running ? "disabled" : ""}>${y} yr</button>`).join("")}</div></div>
+          ${ai ? `<label class="switch" style="display:flex;gap:8px;align-items:flex-start;margin-top:14px;font-size:12px"><input type="checkbox" id="lab-ai"> <span>This plan has AI analysts: about <b>${calls.toLocaleString()}</b> AI calls, paid on your AI key. They see "blind" prompts with no names or dates, so they can't remember what happened.</span></label>` : ""}
+          ${L.error ? `<div class="error">${esc(L.error)}</div>` : ""}
+          <div class="foot" style="justify-content:flex-start">${running ? `<button type="button" class="btn red" data-act="lab-cancel">■ Stop</button>` : `<button class="btn gold" type="submit">▶ Run backtest</button>`}</div>
+        </form>
+        <ul class="caveats"><li>No trading costs are charged in a backtest; real trades cost about 0.1% each.</li><li>Hype Watch and the congress feed can't see the past, so they sit out.</li><li>A good backtest is a reason to paper trade, not proof. Patterns weaken once they're well known.</li></ul></div>
+      <div class="frame">${raceView(show)}</div>
+    </section>
+    <section class="frame runs"><header><h3>Past runs</h3><span class="label">${runs.length} saved</span></header>
+      ${runs.length ? `<div style="overflow-x:auto"><table><thead><tr><th>Plan</th><th class="hide-sm">Period</th><th class="r">Return</th><th class="r">vs S&amp;P</th><th class="r hide-sm">Worst drop</th><th class="r hide-sm">Sharpe</th></tr></thead><tbody>
+        ${runs.map((r) => `<tr data-run="${esc(r.id)}" tabindex="0"><td><div class="disp">${esc(r.mandate)}</div><div class="muted" style="font-size:11px">${esc((r.universe || []).join(" "))}</div></td>
+          <td class="hide-sm muted">${day(r.start)} → ${day(r.end)}</td><td class="r ${cls(r.total_return_pct)}">${pct(r.total_return_pct)}</td>
+          <td class="r ${cls(r.excess_return_pct)}">${(r.excess_return_pct >= 0 ? "+" : "") + (r.excess_return_pct * 100).toFixed(1)} pts</td>
+          <td class="r hide-sm down">-${(r.max_drawdown_pct * 100).toFixed(1)}%</td><td class="r hide-sm">${r.sharpe_ratio.toFixed(2)}</td></tr>`).join("")}</tbody></table></div>`
+        : `<div class="empty">No backtests yet. Your runs (and ones from the terminal) show up here.</div>`}</section>`;
+  if (show?.curve?.nav?.length >= 2) requestAnimationFrame(() => drawChart(curveAsFund(show), "race"));
+}
+function curveAsFund(r) {
+  const c = r.curve;
+  return { capital: r.capital, series: c.dates.map((d, i) => ({ session: d, nav: c.nav[i], benchmark_close: c.benchmark_nav[i], traded: false })) };
+}
+function raceView(r) {
+  if (!r) return `<header><h3>The race</h3></header><div class="empty">Pick a plan and press <b>Run backtest</b>.<br>You'll watch it race the S&amp;P 500 day by day.</div>`;
+  const c = r.curve || { nav: [], benchmark_nav: [] }, n = c.nav.length;
+  const fundRet = n ? c.nav[n - 1] / r.capital - 1 : null, benchRet = n ? c.benchmark_nav[n - 1] / r.capital - 1 : null;
+  const running = r.state === "running";
+  const head = `<header><h3>${running ? "Racing…" : esc(r.mandate)}</h3><div class="legend"><span><i style="background:var(--gold)"></i>${esc(r.mandate)}</span><span><i style="background:var(--mana)"></i>${esc(r.benchmark || "SPY")}</span></div></header>`;
+  const chart = n >= 2 ? `<div class="chart-box"><canvas id="race" role="img" aria-label="Backtest value against the S&amp;P 500"></canvas></div>` : `<div class="empty">${running ? "Loading prices and warming up the analysts…" : "No data."}</div>`;
+  if (running) {
+    const p = r.total ? r.done / r.total : 0;
+    return `${head}${chart}<div class="progress"><i style="width:${(p * 100).toFixed(1)}%"></i></div>
+      <div class="race-stats"><div><div class="k">Day</div><div class="v num">${r.done.toLocaleString()} / ${(r.total || 0).toLocaleString()}</div></div>
+      <div><div class="k">Date</div><div class="v num" style="font-size:16px">${day(c.dates?.[n - 1])}</div></div>
+      <div><div class="k">Plan</div><div class="v num ${cls(fundRet)}">${pct(fundRet)}</div></div><div><div class="k">S&amp;P 500</div><div class="v num ${cls(benchRet)}">${pct(benchRet)}</div></div></div>`;
+  }
+  if (r.state === "failed") return `${head}<div class="error">${esc(r.message)}</div>`;
+  if (r.state === "cancelled") return `${head}${chart}<p class="muted">Stopped.</p>`;
+  const beat = r.excess_return_pct > 0, calmer = r.max_drawdown_pct < r.bench_max_drawdown_pct;
+  const verdict = beat && calmer ? ["up", "Beat the S&P 500 with smaller drops"] : beat ? ["warn", "Beat the S&P 500, but with bigger drops"]
+    : calmer ? ["warn", "Smaller drops, but trailed the S&P 500"] : ["down", "Lost to the S&P 500"];
+  return `${head}${chart}<div class="verdict-big ${verdict[0]}">${verdict[1]}</div>
+    <div class="race-stats"><div><div class="k">Return</div><div class="v num ${cls(r.total_return_pct)}">${pct(r.total_return_pct)}</div></div>
+      <div><div class="k">S&amp;P 500</div><div class="v num ${cls(r.benchmark_return_pct)}">${pct(r.benchmark_return_pct)}</div></div>
+      <div><div class="k">Per year</div><div class="v num ${r.years >= 1 ? cls(r.annualized_return_pct) : "flat"}">${r.years >= 1 ? pct(r.annualized_return_pct) : "–"}</div></div>
+      <div><div class="k">Worst drop</div><div class="v num down">-${(r.max_drawdown_pct * 100).toFixed(1)}%</div><div class="muted" style="font-size:11px">S&amp;P -${(r.bench_max_drawdown_pct * 100).toFixed(1)}%</div></div></div>
+    <p class="muted" style="font-size:12px;margin:10px 0 0">${day(r.start)} → ${day(r.end)} · ${(r.universe || []).map(esc).join(" ")} · ${r.n_cycles} rebalances · Sharpe ${r.sharpe_ratio.toFixed(2)}</p>
+    <div class="foot" style="justify-content:flex-start"><button class="btn" data-act="lab-paper" data-plan="${esc(r.mandate_file || "")}" data-stocks="${esc((r.universe || []).join(", "))}">Start a paper fund with this plan</button></div>`;
+}
+async function startBacktest() {
+  const L = S.lab;
+  L.form.mandate = $("#lab-plan").value; L.form.universe = $("#lab-stocks").value;
+  if (!L.form.universe.trim()) { L.error = "Add at least one stock ticker, like AAPL."; return renderLab(); }
+  const body = { mandate: L.form.mandate, universe: L.form.universe, years: L.form.years };
+  const ai = $("#lab-ai"); if (ai) { if (!ai.checked) { L.error = "Tick the box to confirm the AI cost first."; return renderLab(); } body.confirm_ai = true; }
+  L.error = null; L.run = null; L.viewing = null;
+  try { await api("/api/backtests", body); L.data = await api("/api/backtests"); renderLab(); pollLab(); }
+  catch (e) { L.error = e.message; renderLab(); }
+}
+function pollLab() {
+  clearInterval(S.labPoll);
+  S.labPoll = setInterval(async () => {
+    if (!S.lab) return clearInterval(S.labPoll);
+    try { S.lab.data = await api("/api/backtests"); } catch { return; }
+    const st = S.lab.data.status;
+    if (st.state !== "running") {
+      clearInterval(S.labPoll);
+      if (st.state === "done" && st.result) { S.lab.run = await api(`/api/backtests/${encodeURIComponent(st.result.id)}`).catch(() => null); (st.result.excess_return_pct > 0 ? SFX.levelUp : SFX.loss)(); if (st.result.excess_return_pct > 0) burst(); }
+    }
+    if (!$("#layer").innerHTML && document.activeElement?.id !== "lab-stocks") renderLab();
+  }, 1000);
+}
+
 /* ---------------------------------------------------------------- screens */
 function render() {
   $("#demo").innerHTML = S.demo ? `<div class="demo-banner">DEMO · sample data, not a real fund · run "aihf web" on your computer to play</div>` : "";
-  if (S.fund) renderFund(); else renderHome();
+  if (S.lab) renderLab(); else if (S.fund) renderFund(); else renderHome();
 }
 
 function topbar(right = "") {
@@ -503,6 +784,7 @@ function topbar(right = "") {
     <div class="chips">${right}
       ${S.app ? `<span class="pill ${S.app.data_source === "yahoo" ? "" : "up"}" title="${esc(S.app.data_label)}">Data: ${S.app.data_source === "yahoo" ? "Yahoo · free" : "Financial Datasets"}</span>` : ""}
       ${m ? `<span class="pill ${m.key_set ? "" : "warn"}" title="The AI model your AI analysts think with">AI: ${esc(m.label)}${m.key_set ? "" : " · no key"}</span>` : ""}
+      ${bellButton()}
       <button class="btn small ghost" data-act="sound" aria-pressed="${!SFX.muted}" title="Sound effects">${SFX.muted ? "♪ Off" : "♪ On"}</button>
       <button class="btn small ghost" data-act="settings">Keys &amp; model</button></div></div>`;
 }
@@ -540,10 +822,11 @@ function renderHome() {
       <div class="meta">${lead == null ? "Not played yet" : `${lead >= 0 ? "Ahead of" : "Behind"} ${esc(f.benchmark)} by ${(Math.abs(lead) * 100).toFixed(1)} pts`}${f.last_session ? ` · last day ${day(f.last_session)}` : ""}</div>
     </button>`;
   }).join("");
-  $("#app").innerHTML = `${topbar()}${coinBanner()}${highScores()}
-    <header style="display:flex;justify-content:space-between;align-items:baseline;margin:6px 0 14px;gap:12px;flex-wrap:wrap">
+  $("#app").innerHTML = `${topbar()}${coinBanner()}${highScores()}${autoplayPanel()}
+    <header style="display:flex;justify-content:space-between;align-items:center;margin:6px 0 14px;gap:12px;flex-wrap:wrap">
       <h2 style="font-size:22px">Select a save file</h2>
-      <span class="label">${funds.length} fund${funds.length === 1 ? "" : "s"}</span></header>
+      <span style="display:flex;gap:12px;align-items:center"><span class="label">${funds.length} fund${funds.length === 1 ? "" : "s"}</span>
+      <button class="btn small" data-act="lab">Backtest lab</button></span></header>
     <div class="slots">${slots}
       <button class="frame slot new" data-act="new"><span class="plus">+</span><span class="disp" style="font-size:18px">New game</span>
       <span class="meta">Pick a team of AI analysts, choose stocks, start with pretend money.</span></button></div>`;
@@ -631,6 +914,7 @@ function renderFund() {
       <div class="frame">${partyPanel(f)}</div>
       <div class="frame">${nextPanel(f)}</div>
     </section>
+    ${goLivePanel(f)}
     ${trophyRoom(f)}
     <section class="frame"><header><h3>Battle log</h3><span class="label">newest first</span></header>${logPanel(f)}</section>`;
 
@@ -730,8 +1014,8 @@ function renderActions() {
 }
 
 /* ------------------------------------------------------------------ chart */
-function drawChart(f) {
-  const canvas = $("#chart"); if (!canvas) return;
+function drawChart(f, id = "chart") {
+  const canvas = $("#" + id); if (!canvas) return;
   const box = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
   canvas.width = box.width * dpr; canvas.height = box.height * dpr;
   const g = canvas.getContext("2d"); g.scale(dpr, dpr);
@@ -831,6 +1115,7 @@ function settingsModal(error = "") {
   });
 }
 
+const SUGGEST_STOCKS = { "trend-shield": "SPY, EFA, IEF, VNQ, GLD", "momentum-leaders": "AAPL, MSFT, NVDA, AMZN, GOOGL, META, JPM, V, LLY, XOM, COST, HD", "ai-quality-check": "AAPL, MSFT, NVDA, GOOGL, JPM, LLY, COST, XOM", "copy-desk": "AAPL, AXP, BAC, KO, OXY, CMG, GOOGL, AMZN, UBER, HLT, NVDA, MSFT" };
 function newGameModal(error = "", values = {}) {
   const ms = (S.app.mandates || []).filter((x) => !x.error);
   if (!ms.length) return modal(`<h3>New game</h3><div class="error">No fund plans found in your .hedge-fund/mandates folder.</div><div class="foot"><button class="btn" data-act="close">Close</button></div>`);
@@ -843,7 +1128,7 @@ function newGameModal(error = "", values = {}) {
       <div class="field"><label class="label" for="g-cap">Starting money (pretend)</label><input id="g-cap" inputmode="decimal" value="${esc(values.capital || "")}"></div>
       ${error ? `<div class="error">${esc(error)}</div>` : ""}
       <div class="foot"><button type="button" class="btn ghost" data-act="close">Cancel</button><button class="btn gold" type="submit">Start game</button></div></form>`);
-  const SUGGEST = { "trend-shield": "SPY, EFA, IEF, VNQ, GLD", "momentum-leaders": "AAPL, MSFT, NVDA, AMZN, GOOGL, META, JPM, V, LLY, XOM, COST, HD", "ai-quality-check": "AAPL, MSFT, NVDA, GOOGL, JPM, LLY, COST, XOM", "copy-desk": "AAPL, AXP, BAC, KO, OXY, CMG, GOOGL, AMZN, UBER, HLT, NVDA, MSFT" };
+  const SUGGEST = SUGGEST_STOCKS;
   const sync = () => { const m = ms.find((x) => x.file === $("#g-team").value); $("#g-team-hint").textContent = `${describe(m)} · trades ${m.rebalance}`;
     const tip = SUGGEST[m.file]; $("#g-stocks-hint").textContent = tip ? `Suggested for this team: ${tip}` : "US stock or ETF tickers, separated by commas.";
     if (tip && (!$("#g-stocks").value || $("#g-stocks").dataset.auto)) { $("#g-stocks").value = tip; $("#g-stocks").dataset.auto = "1"; } if (!$("#g-cap").value || $("#g-cap").dataset.auto) { $("#g-cap").value = m.capital; $("#g-cap").dataset.auto = "1"; } };
@@ -929,14 +1214,29 @@ async function openFund(name) {
 
 document.addEventListener("click", async (ev) => {
   SFX.wake();
-  const t = ev.target.closest("[data-act],[data-open],[data-ticker],[data-scrim]");
+  const t = ev.target.closest("[data-act],[data-open],[data-ticker],[data-scrim],[data-years],[data-run]");
   if (!t) return;
   if (t.matches(".btn,.tab,[data-open]") && t.dataset.act !== "sound") SFX.click();
   if (t.dataset.scrim !== undefined && ev.target === t) return closeModal();
   if (t.dataset.open) return openFund(t.dataset.open).catch((e) => toast(e.message));
   if (t.dataset.ticker) { S.ticker = t.dataset.ticker; return renderFund(); }
+  if (t.dataset.years) { S.lab.form.mandate = $("#lab-plan").value; S.lab.form.universe = $("#lab-stocks").value; S.lab.form.years = Number(t.dataset.years); return renderLab(); }
+  if (t.dataset.run) return openLab(t.dataset.run);
   switch (t.dataset.act) {
-    case "home": S.fund = null; S.freshDay = null; await refreshApp().catch(() => {}); return render();
+    case "home": S.fund = null; S.lab = null; clearInterval(S.labPoll); S.freshDay = null; await refreshApp().catch(() => {}); return render();
+    case "lab": return openLab();
+    case "lab-cancel": try { await api("/api/backtests/cancel", {}); } catch (e) { toast(e.message); } return;
+    case "lab-paper": { const plan = t.dataset.plan, stocks = t.dataset.stocks; S.lab = null; S.fund = null; render(); return newGameModal("", { mandate: plan, universe: stocks }); }
+    case "alerts": await pollAlerts(); return alertsModal();
+    case "test-alert": return saveAlertSettings(true);
+    case "desk-notify": try { await Notification.requestPermission(); } catch { /* fine */ } return alertsModal();
+    case "scheduler": return schedulerModal();
+    case "autoplay-toggle":
+      try { const out = await api("/api/settings", { autoplay: !S.app.autoplay.enabled }); S.app = out; toast(out.autoplay.enabled ? "Auto-play on" : "Auto-play off"); } catch (e) { toast(e.message); }
+      return render();
+    case "check-now":
+      try { S.app = await api("/api/autoplay/check", {}); S.app.autoplay.checking = true; } catch (e) { toast(e.message); }
+      return render();
     case "sound": SFX.toggle(); return render();
     case "cheer": closeModal(); return nextCheer();
     case "settings": return settingsModal();
@@ -953,8 +1253,23 @@ document.addEventListener("click", async (ev) => {
 document.addEventListener("keydown", (ev) => {
   if (ev.key === "Escape" && $("#layer").innerHTML) { closeModal(); S.cheers = []; }
   if ((ev.key === "Enter" || ev.key === " ") && ev.target.matches("tr[data-open]")) { ev.preventDefault(); openFund(ev.target.dataset.open).catch((e) => toast(e.message)); }
+  if ((ev.key === "Enter" || ev.key === " ") && ev.target.matches("tr[data-run]")) { ev.preventDefault(); openLab(ev.target.dataset.run); }
 });
-let resizeTimer; window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => S.fund && S.fund.series.length >= 2 && drawChart(S.fund), 120); });
+let resizeTimer; window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => {
+  if (S.fund && S.fund.series.length >= 2) drawChart(S.fund);
+  if (S.lab) renderLab();
+}, 120); });
+
+document.addEventListener("submit", (ev) => { if (ev.target.id === "lab-form") { ev.preventDefault(); startBacktest(); } });
+document.addEventListener("change", (ev) => {
+  if (ev.target.id === "lab-plan" && S.lab) { S.lab.form.mandate = ev.target.value; S.lab.form.universe = SUGGEST_STOCKS[ev.target.value] || ""; renderLab(); }
+});
+
+// Background refresh: alerts everywhere; the home screen also picks up auto-play progress.
+setInterval(async () => {
+  await pollAlerts();
+  if (!S.demo && !S.fund && !S.lab && !$("#layer").innerHTML) { try { await refreshApp(); renderHome(); } catch { /* offline: keep the screen */ } }
+}, 20000);
 
 /* ------------------------------------------------------------------ demo */
 // Sample data for the preview page only: invented numbers, clearly bannered.
@@ -1004,12 +1319,22 @@ function demoData() {
     sessions: series.length, last_session: last.session, nav: last.nav, return_pct: last.nav / cap - 1, benchmark_return_pct: last.benchmark_close / series[0].benchmark_close - 1,
     halted: null, spec, llm_model: "deepseek-flash", series, cash, holdings, max_drawdown_pct: series.reduce((acc, p) => { acc.peak = Math.max(acc.peak, p.nav); acc.worst = Math.min(acc.worst, p.nav / acc.peak - 1); return acc; }, { peak: cap, worst: 0 }).worst,
     view: { as_of: last.session, status: "pending", signals, targets, clamps: [{ ticker: "MSFT", limit: "max_position_pct", before: 0.29, after: 0.25 }] },
+    scorecard: { passed: 3, total: 8, all_passed: false, checks: [
+      { id: "time", name: "Six months on paper", ok: false, detail: `${series.length} of 126 trading days`, why: "Anything shorter is mostly luck.", progress: [series.length, 126] },
+      { id: "beat", name: "Beats the S&P 500", ok: true, detail: "+3.9% vs +1.2%", why: "Otherwise an index fund does the job for less." },
+      { id: "costs", name: "Still ahead after costs", ok: true, detail: "about 0.21% in trading costs", why: "Paper trades are free; real ones cost about 0.1% each in spreads and fees." },
+      { id: "drops", name: "Smaller drops", ok: false, detail: "worst 4.1% vs S&P 3.2%", why: "Big drops are what make people quit. Also never worse than 25%." },
+      { id: "risk", name: "Better return for its risk", ok: true, detail: "Sharpe 1.41 vs S&P 0.88", why: "Beating the index by taking wild risks doesn't count." },
+      { id: "steady", name: "Wins most months", ok: false, detail: "no full month yet", why: "One lucky week shouldn't carry the whole record.", progress: [0, 3] },
+      { id: "clean", name: "Runs cleanly", ok: false, detail: "needs 30 days", why: "A fund that breaks needs fixing before it holds anything real." },
+      { id: "backtest", name: "Backtest agrees", ok: false, detail: "run a 2+ year backtest of example-fund", why: "Live luck and backtest luck rarely line up by accident." }] },
     pending: { as_of: last.session, targets, clamps: [{ ticker: "MSFT", limit: "max_position_pct", before: 0.29, after: 0.25 }] }, log, run: { state: "idle" } };
   fund.lead = fund.return_pct - fund.benchmark_return_pct; fund.place = 1;
   fund.game = demoGame(days, { opening_bell: 0, first_trade: 1, week_one: 4, boss_fight: 6, month: 20, hot_streak: 11, cool_head: 21, iron_shield: 24 });
   const summary = (({ spec, series, holdings, view, log, run, ...rest }) => rest)(fund);
   const state = { data_key_set: false, data_source: "yahoo", data_label: "Yahoo Finance (free, prices only)", data_ready: true, model: { id: "deepseek-flash", label: "DeepSeek V4.1 Flash", provider: "DeepSeek", key_env: "DEEPSEEK_API_KEY", key_set: true },
     models: [{ id: "deepseek-flash", label: "DeepSeek V4.1 Flash", provider: "DeepSeek", key_env: "DEEPSEEK_API_KEY", key_set: true }],
+    autoplay: { enabled: true, checking: false, last_check: null, next_check: null, results: [] },
     mandates: [{ file: "example", ...spec }], leaderboard: ["demo-fund", "copy-desk-trial", "tech-trio"],
     funds: [summary,
       { ...summary, name: "copy-desk-trial", mandate: "copy-desk", universe: ["AAPL", "OXY", "KO", "AXP"], sessions: 12, nav: cap * 0.987, return_pct: -0.013, benchmark_return_pct: 0.004, lead: -0.017, max_drawdown_pct: -0.031, place: 2, game: demoGame(days.slice(0, 12), { opening_bell: 0, first_trade: 1, week_one: 4, copycat: 2 }) },
@@ -1038,16 +1363,22 @@ function demoGame(days, unlocked) {
   const rank = [[17, "Legend"], [12, "Partner"], [8, "Portfolio Manager"], [5, "Trader"], [3, "Analyst"], [1, "Intern"]].find(([l]) => level >= l)[1];
   return { xp, level, rank, level_floor: 25 * level * (level - 1), level_next: 25 * (level + 1) * level, unlocked: n, badges };
 }
+const DEMO_ALERTS = [
+  { id: "d1", fund: "copy-desk-trial", session: "2026-10-12", kind: "insider", label: "Insider buying", level: "good", ticker: "KO", title: "KO: a cluster of insiders buying", body: "3 insiders bought $1,240,000 on the open market in 90 days. A cluster buy, the strongest kind." },
+  { id: "d2", fund: "demo-fund", session: "2026-10-09", kind: "pump", label: "Pump alarm", level: "warn", ticker: "NVDA", title: "NVDA: pump alarm", body: "NVDA spiked on unusually heavy trading. demo-fund stays out of it for now." },
+  { id: "d3", fund: "demo-fund", session: "2026-10-02", kind: "big_day", label: "Big day", level: "good", ticker: null, title: "demo-fund jumped 3.2% today", body: "Paper value $103,904 at the 2026-10-02 close." }];
 let DEMO;
 async function demoApi(path, body) {
   DEMO ||= demoData();
   if (path === "/api/state") return DEMO.state;
+  if (path === "/api/alerts") return { alerts: DEMO_ALERTS, settings: { phone: false, kinds: Object.keys(KIND_LABELS) }, phone_ready: false };
+  if (path === "/api/backtests") return { status: { state: "idle" }, runs: [] };
   if (body !== undefined) throw new Error("Demo mode: this is a preview with sample data. Run \"aihf web\" on your computer to play for real.");
   if (path.endsWith("/plan")) throw new Error("Demo mode: playing a day needs the app running on your computer (aihf web).");
   const name = decodeURIComponent(path.split("/")[3]);
   if (name === "demo-fund") return DEMO.fund;
   const s = DEMO.state.funds.find((f) => f.name === name);
-  return { ...s, spec: DEMO.fund.spec, series: [], cash: s.nav, holdings: [], view: null, pending: null, log: [], run: { state: "idle" } };
+  return { ...s, spec: DEMO.fund.spec, series: [], cash: s.nav, holdings: [], view: null, pending: null, log: [], run: { state: "idle" }, scorecard: null };
 }
 
 /* ------------------------------------------------------------------ boot */
@@ -1055,6 +1386,7 @@ async function demoApi(path, body) {
   const local = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
   try { if (!local) throw new Error("preview"); await refreshApp(); }
   catch { S.demo = true; await refreshApp(); }
+  await pollAlerts();
   render();
   if (S.demo && !S.fund) await openFund("demo-fund");
 })();
