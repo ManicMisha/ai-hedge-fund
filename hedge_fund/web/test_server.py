@@ -356,3 +356,38 @@ def test_backtest_routes(http, dash, clock, tmp_path):
         lab.start_backtest({"mandate": "brainy", "universe": "AAPL", "years": 1})
     assert exc.value.status == 409 and "AI" in exc.value.message
     assert http("GET", "/api/backtests")[0] == 200 and http("GET", "/api/backtests/..%2Fx")[0] == 404
+
+
+# ---------------------------------------------------------------------------
+# FOMO desk
+# ---------------------------------------------------------------------------
+
+def test_fomo_desk_routes_settings_and_alert_feed(http, dash, monkeypatch, tmp_path):
+    from hedge_fund.fomo.sources import Quote, SOL_MINT, Swap
+    from hedge_fund.fomo.test_fomo import BONK, FakeDex, FakeRPC, W
+    rpc, dex = FakeRPC(), FakeDex()
+    app = Dashboard(dash.paper_root, dash.mandates_root, data=fake_data, build_fund=build_fund, save_key=lambda *a: None,
+                    fomo_sources={"rpc": rpc, "dex": dex, "bitquery": lambda: type("Q", (), {"window": lambda self, s, t: []})()})
+    status = app.fomo_status()
+    assert status["settings"]["enabled"] is False and status["nav"] == 1000 and status["bitquery_set"] is False
+    with pytest.raises(Exception):
+        app.fomo_settings({"slot_pct": 0.9})
+    assert app.fomo_settings({"slot_pct": 0.05, "capital": 2000})["config"]["slot_pct"] == 0.05
+    assert app.fomo_reset({})["capital"] == 2000
+    desk = app.fomo.desk()
+    desk.state["followed"] = [W]
+    app.fomo.cycle()  # first look sets the cursor
+    rpc.sigs[W] = ["s1"]
+    rpc.swaps_by_sig["s1"] = [Swap(W, "s1", 0, BONK, "buy", 1_000_000, SOL_MINT, 0.5)]
+    dex.book[BONK] = Quote(BONK, "BONK", 0.0001, 300_000.0, 0)
+    pushed = []
+    app.push = pushed.append
+    monkeypatch.setenv("NTFY_TOPIC", "aihf-k3j4h5g6")
+    app.update_settings({"alerts": {"phone": True}})
+    [event] = app.fomo.cycle()
+    assert event["kind"] == "buy" and pushed and pushed[0]["title"] == "FOMO copy: bought BONK"
+    feed = app.alerts()["alerts"]
+    assert feed[0]["fund"] == "FOMO desk" and feed[0]["kind"] == "fomo"
+    assert http("GET", "/api/fomo")[0] == 200
+    assert http("POST", "/api/keys", {"env_var": "SOLANA_RPC_URL", "value": "http://insecure"})[0] == 400
+    assert http("POST", "/api/keys", {"env_var": "BITQUERY_TOKEN", "value": "ory_at_abc"})[0] == 200

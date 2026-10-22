@@ -40,6 +40,10 @@ Usage::
         new phone alerts. For Windows Task Scheduler or cron, so funds play
         even when the dashboard isn't open. Appends to ~/.hedge-fund/autoplay.log.
 
+    aihf fomo
+        One round of the FOMO desk: save new FOMO trades, re-pick the top
+        traders, read their latest trades and paper-copy them. Paper only.
+
 A mandate is the desk — strategies, staff, risk, capital, cadence — and
 never names tickers; the universe is fixed when a fund is deployed (paper)
 or given per study (backtest).
@@ -106,6 +110,10 @@ def main() -> None:
         _play_all()
         return
 
+    if args.command == "fomo":
+        _fomo()
+        return
+
     console = Console(stderr=True)  # status + summary on stderr; stdout stays pure JSON
     try:
         if args.command == "backtest":
@@ -162,6 +170,12 @@ def _parser() -> argparse.ArgumentParser:
         description="Play every paper fund's due days (up to 30 each), skip frozen funds "
         "and funds missing a key, then send any new phone alerts. Safe to run as often as "
         "you like: a fund that's up to date does nothing.",
+    )
+
+    commands.add_parser(
+        "fomo", help="one round of the FOMO copy desk (paper only)",
+        description="Save new FOMO trades, re-pick the top traders to follow, read their latest "
+        "trades and paper-copy them. Schedule it every few minutes to keep the desk running.",
     )
 
     paper = commands.add_parser("paper", help="deploy and advance a paper fund")
@@ -300,6 +314,34 @@ def _play_all() -> None:
             fh.write("\n".join(lines) + "\n")
     except OSError:
         pass
+
+
+def _fomo() -> None:
+    from hedge_fund import alerts
+    from hedge_fund.fomo import Desk, event_alert
+    from hedge_fund.fomo import leaderboard as board
+    from hedge_fund.paths import USER_DIR
+    from hedge_fund.settings import load_settings
+
+    settings = load_settings()
+    desk = Desk(USER_DIR / "fomo", {k: v for k, v in settings["fomo"].items() if k != "enabled"})
+    if board.due_windows(desk.store) or desk.state["last_collect"] is None:
+        desk.collect()
+    events = desk.poll()
+    phone = settings["alerts"]["phone"] and "fomo" in settings["alerts"]["kinds"] and alerts.ntfy_target()
+    for event in events:
+        print(event["text"])
+        alert = event_alert(event)
+        if phone and alert:
+            try:
+                alerts.push_phone(alert)
+            except Exception as exc:
+                print(f"  (phone alert failed: {exc})")
+    status = desk.status()
+    for source, err in status["errors"].items():
+        print(f"{source}: {err['message']}")
+    print(f"FOMO desk: ${status['nav']:,.2f} ({status['return_pct']:+.1%}), following {status['followed']} traders, "
+          f"{len(status['positions'])} open copies, {status['coverage']['hours']}h of FOMO trades saved.")
 
 
 # ---------------------------------------------------------------------------

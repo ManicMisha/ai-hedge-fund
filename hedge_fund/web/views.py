@@ -96,7 +96,7 @@ def _model_view(model_id: str, label: str, provider: str | None) -> dict:
 
 def allowed_key_vars() -> set[str]:
     """The only environment variables the dashboard may write."""
-    return {DATA_KEY, SEC_VAR, BARGO_VAR, NTFY_VAR, *PROVIDER_ENV_VARS.values()}
+    return {DATA_KEY, SEC_VAR, BARGO_VAR, NTFY_VAR, "BITQUERY_TOKEN", "SOLANA_RPC_URL", *PROVIDER_ENV_VARS.values()}
 
 
 def missing_keys(spec: FundSpec) -> str | None:

@@ -38,7 +38,7 @@ _KEEP_SENT = 400
 LABELS = {
     "insider": "Insider buying", "fund_buy": "Famous fund buying", "congress": "Congress buying",
     "hype": "Hype warning", "pump": "Pump alarm", "shield": "Market shield", "big_day": "Big day",
-    "drawdown": "Drawdown", "frozen": "Fund frozen", "golive": "Go-live check",
+    "drawdown": "Drawdown", "frozen": "Fund frozen", "golive": "Go-live check", "fomo": "FOMO copy",
 }
 _TAGS = {"good": "chart_with_upwards_trend", "warn": "warning", "bad": "rotating_light", "info": "bell"}
 

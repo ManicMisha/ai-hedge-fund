@@ -332,6 +332,18 @@ code.cmd { display: block; background: #0c0918; border: 2px solid var(--edge); p
   .alert { grid-template-columns: 1fr; gap: 4px; }
 }
 
+/* FOMO desk */
+.fomo-card { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto; gap: 16px; align-items: center; margin-bottom: 22px; border-color: #5d3a8c; }
+.fomo-card .state { font-family: var(--display); font-size: 20px; letter-spacing: .08em; color: #c79bff; }
+.fomo-card .state.on::before { content: "● "; color: var(--hp); animation: blink 1.4s steps(2) infinite; }
+.fomo-card .state.off { color: var(--muted); }
+.fomo-card .nums { display: flex; gap: 22px; flex-wrap: wrap; }
+.fomo-card .k { font-size: 11px; color: var(--muted); font-family: var(--display); letter-spacing: .1em; text-transform: uppercase; }
+.fomo-card .num { font-size: 20px; }
+a.wallet { color: var(--mana); font-family: var(--display); text-decoration: none; }
+a.wallet:hover { text-decoration: underline; }
+@media (max-width: 760px) { .fomo-card { grid-template-columns: 1fr; } }
+
 @media (max-width: 960px) {
   .stats { grid-template-columns: 1fr 1fr; }
   .grid2 { grid-template-columns: minmax(0, 1fr); }
@@ -770,10 +782,123 @@ function pollLab() {
   }, 1000);
 }
 
+/* --------------------------------------------------------------- FOMO desk */
+async function openFomo() {
+  try { S.fomo = await api("/api/fomo"); } catch (e) { return toast(e.message); }
+  S.fund = null; S.lab = null; render(); window.scrollTo({ top: 0 });
+  clearInterval(S.fomoPoll);
+  S.fomoPoll = setInterval(async () => {
+    if (!S.fomo) return clearInterval(S.fomoPoll);
+    try { S.fomo = await api("/api/fomo"); } catch { return; }
+    if (!$("#layer").innerHTML && !document.activeElement?.closest?.("#fomo-form")) renderFomo();
+  }, 15000);
+}
+function fomoCard() {
+  const f = S.app?.fomo_card; if (!f) return "";
+  return `<section class="frame fomo-card"><div><div class="state ${f.enabled ? "on" : "off"}">FOMO DESK ${f.enabled ? "ON" : "OFF"}</div>
+      <div class="muted" style="font-size:12px">Finds FOMO's top traders and paper-copies their trades as they make them.</div></div>
+    <div class="nums"><div><div class="k">Copy fund</div><div class="num">${money(f.nav)}</div></div>
+      <div><div class="k">Return</div><div class="num ${cls(f.return_pct)}">${pct(f.return_pct)}</div></div>
+      <div><div class="k">Following</div><div class="num">${f.followed}</div></div></div>
+    <button class="btn ${f.enabled ? "" : "gold"}" data-act="fomo">${f.enabled ? "Open desk" : "Set up"}</button></section>`;
+}
+function walletLink(w, label) { return `<a href="https://solscan.io/account/${encodeURIComponent(w)}" target="_blank" rel="noopener" class="wallet">${esc(label)}</a>`; }
+function renderFomo() {
+  $("#actions").innerHTML = "";
+  const f = S.fomo, cfg = f.settings, cov = f.coverage;
+  const lead = f.sol_return_pct == null ? null : f.return_pct - f.sol_return_pct;
+  const setup = !f.bitquery_set ? `<section class="frame coin"><div class="big disp">INSERT COIN</div>
+      <div>Add a free <b>Bitquery</b> token so the desk can read FOMO's trades and find its top traders. Sign up at bitquery.io, create an Application, copy its access token, and paste it below. The free plan's 10,000 points last months at this desk's ~40 points a day.</div>
+      <a class="btn gold" href="https://account.bitquery.io/user/api_v2/applications" target="_blank" rel="noopener">Get a token</a></section>` : "";
+  const errs = Object.entries(f.errors || {}).map(([k, e]) => `<div class="error" style="margin:0 0 12px">${esc({ bitquery: "Finding traders", solana: "Watching wallets", prices: "Prices" }[k] || k)}: ${esc(e.message)}</div>`).join("");
+  const series = (f.history || []).filter((h) => h.sol).map((h) => ({ session: h.t, nav: h.nav, benchmark_close: h.sol, traded: false }));
+  const board = f.leaderboard || [];
+  $("#app").innerHTML = `${topbar(`<button class="btn small" data-act="home">◀ Saves</button>`)}${setup}
+    <div class="hud"><h2>FOMO desk</h2><span class="pill ${cfg.enabled ? "up" : "faint"}">${cfg.enabled ? "Running" : "Off"}</span>
+      <span class="muted" style="font-size:12px">Paper money only · rides behind FOMO's top traders · started ${day(f.started)}</span></div>
+    ${errs}
+    <section class="stats">
+      <div class="frame stat"><div class="label">Copy fund</div><div class="value num">${money(f.nav, f.nav < 1000)}</div>
+        <div class="note"><span class="${cls(f.return_pct)}">${pct(f.return_pct, 2)}</span> from ${money(f.capital)} · cash ${money(f.cash)}</div></div>
+      <div class="frame stat"><div class="label">Boss · holding SOL</div><div class="value num ${cls(f.sol_return_pct)}">${pct(f.sol_return_pct, 2)}</div>
+        <div class="note">${lead == null ? "Starts with the first price check" : lead >= 0 ? `Ahead by ${(lead * 100).toFixed(1)} pts` : `Behind by ${(-lead * 100).toFixed(1)} pts`}</div></div>
+      <div class="frame stat"><div class="label">Copies</div><div class="value num">${f.copies}</div>
+        <div class="note">${f.win_rate == null ? "No closed copies yet" : `${Math.round(f.win_rate * 100)}% of closed copies won`} · fees ${money(f.fees, true)}</div></div>
+      <div class="frame stat"><div class="label">Lag cost</div><div class="value num ${f.avg_lag == null ? "flat" : f.avg_lag > 0.03 ? "down" : "up"}">${f.avg_lag == null ? "–" : pct(f.avg_lag)}</div>
+        <div class="note">How much more the desk paid than the trader, on average. The price of riding behind.</div></div>
+    </section>
+    <section class="grid2">
+      <div class="frame"><header><h3>The race</h3><div class="legend"><span><i style="background:var(--gold)"></i>Copy fund</span><span><i style="background:var(--mana)"></i>Holding SOL</span></div></header>
+        ${series.length >= 2 ? `<div class="chart-box"><canvas id="fomo-chart" role="img" aria-label="Copy fund against holding SOL"></canvas></div>` : `<div class="empty">The race draws itself once the desk has run for a little while.</div>`}</div>
+      <div class="frame"><header><h3>Open copies</h3><span class="label">${f.positions.length} held</span></header>
+        <div class="inv">${f.positions.map((p) => `<div class="item"><div class="tk" style="font-size:13px;overflow:hidden">${esc(p.symbol)}</div>
+          <div style="min-width:0"><div class="sub">from ${p.from.map(esc).join(", ")}${p.lag != null ? ` · ${pct(p.lag)} lag` : ""}</div><div class="sub">${day(p.opened)}</div></div>
+          <div class="val"><div class="num">${money(p.value, true)}</div><div class="sub ${cls(p.pnl_pct)}">${pct(p.pnl_pct)}</div></div></div>`).join("") || `<div class="empty" style="padding:12px">No copies open.</div>`}
+          <div class="item"><div class="tk cash">$</div><div><div>Cash</div><div class="sub">Waiting for the next trade</div></div><div class="val num">${money(f.cash, true)}</div></div></div></div>
+    </section>
+    <section class="frame board"><header><h2 class="title">FOMO TOP TRADERS</h2><span class="label">last 7 days · realized profit</span></header>
+      ${board.length ? `<div style="overflow-x:auto"><table><thead><tr><th>#</th><th>Trader</th><th class="r">Profit (sold)</th><th class="r">Win rate</th><th class="r hide-sm">Closed</th><th class="r hide-sm">Trades</th><th class="hide-sm">Best token</th></tr></thead><tbody>
+        ${board.map((w, i) => `<tr><td><span class="place ${w.eligible && i < 3 ? `p${i + 1}` : ""}">${i + 1}</span></td>
+          <td>${walletLink(w.wallet, w.short)}${w.following ? ` <span class="pill up" style="font-size:10px">Following</span>` : w.eligible ? "" : ` <span class="early">${w.closed < 5 ? "too few trades" : "too few wins"}</span>`}</td>
+          <td class="r num ${cls(w.realized)}">${w.realized >= 0 ? "+" : "-"}${money(Math.abs(w.realized))}</td>
+          <td class="r">${w.win_rate == null ? "–" : Math.round(w.win_rate * 100) + "%"}</td><td class="r hide-sm">${w.closed}</td><td class="r hide-sm muted">${w.trades}</td>
+          <td class="hide-sm">${w.best ? `${esc(w.best.symbol)} <span class="up">+${money(w.best.profit)}</span>` : "–"}</td></tr>`).join("")}</tbody></table></div>`
+        : `<div class="empty">${f.bitquery_set ? "Collecting FOMO's trades. The first ranking appears within 3 hours." : "Add a Bitquery token to start collecting."}</div>`}
+      <p class="foot-note">Rebuilt from ${cov.hours} hours of public FOMO trades${cov.full ? "" : ` (rankings firm up after 7 days)`}. Followed traders need 5+ closed positions and half of them winners, so one lucky memecoin doesn't count. Profit is from what they sold, at their average cost.</p></section>
+    <section class="grid2">
+      <div class="frame"><header><h3>Trade feed</h3><span class="label">newest first</span></header>
+        <div class="log">${(f.events || []).map((e) => `<div class="entry"><span class="when">${esc(new Date(e.t).toLocaleString([], { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }))}</span>
+          <span class="tag ${{ buy: "buy", sell: "sell", skip: "redo", follow: "plan" }[e.kind] || "redo"}">${esc({ buy: "Copy", sell: "Sell", skip: "Skip", follow: "Follow" }[e.kind] || e.kind)}</span><span class="what">${esc(e.text)}</span></div>`).join("") || `<div class="empty">Nothing yet. Copies appear here the moment a followed trader buys.</div>`}</div></div>
+      <div class="frame"><header><h3>Desk settings</h3></header>
+        <form id="fomo-form">
+          <label class="switch" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="fm-on" ${cfg.enabled ? "checked" : ""}> Run the desk (every minute while this window is open)</label>
+          <div class="field"><label class="label" for="fm-bq">Bitquery token</label><input id="fm-bq" type="password" autocomplete="off" placeholder="${f.bitquery_set ? "Saved ✓ (paste to replace)" : "Paste your access token"}"></div>
+          <div class="field"><label class="label" for="fm-rpc">Solana data address (optional)</label><input id="fm-rpc" type="password" autocomplete="off" placeholder="${f.rpc_custom ? "Saved ✓" : "Free public one by default"}">
+            <span class="hint">A free Helius or QuickNode address is more reliable than the public one.</span></div>
+          <div class="field"><label class="label" for="fm-follow">Traders to follow</label><input id="fm-follow" inputmode="numeric" value="${cfg.follow}"></div>
+          <div class="field"><label class="label" for="fm-slot">Money per copy (% of fund)</label><input id="fm-slot" inputmode="decimal" value="${+(cfg.slot_pct * 100).toFixed(1)}"></div>
+          <div class="field"><label class="label" for="fm-liq">Skip pools smaller than ($)</label><input id="fm-liq" inputmode="numeric" value="${cfg.min_liquidity}"></div>
+          <div class="field"><label class="label" for="fm-stop">Stop-loss (%)</label><input id="fm-stop" inputmode="numeric" value="${Math.round(cfg.stop_loss * 100)}"></div>
+          ${S.fomoError ? `<div class="error">${esc(S.fomoError)}</div>` : ""}
+          <div class="foot"><button type="button" class="btn ghost" data-act="fomo-schedule">Window closed?</button><button type="button" class="btn" data-act="fomo-run" ${f.busy ? "disabled" : ""}>${f.busy ? "Checking…" : "Check now"}</button><button class="btn gold" type="submit">Save</button></div>
+        </form>
+        <p class="faint" style="font-size:12px;margin-top:12px">Restart with fresh pretend money: <button type="button" class="btn small ghost" data-act="fomo-reset">Reset copy fund</button></p></div>
+    </section>`;
+  if (series.length >= 2) requestAnimationFrame(() => drawChart({ capital: series[0].nav, series }, "fomo-chart"));
+}
+async function saveFomo() {
+  const num = (id) => Number($(id).value.replace(/[$,%\s]/g, ""));
+  try {
+    const bq = $("#fm-bq").value.trim(), rpc = $("#fm-rpc").value.trim();
+    if (bq) await api("/api/keys", { env_var: "BITQUERY_TOKEN", value: bq });
+    if (rpc) await api("/api/keys", { env_var: "SOLANA_RPC_URL", value: rpc });
+    S.fomo = await api("/api/fomo/settings", { enabled: $("#fm-on").checked, follow: num("#fm-follow"), slot_pct: num("#fm-slot") / 100,
+      min_liquidity: num("#fm-liq"), stop_loss: num("#fm-stop") / 100 });
+    S.fomoError = null; toast("Saved");
+  } catch (e) { S.fomoError = e.message; }
+  renderFomo();
+}
+function fomoScheduleModal() {
+  modal(`<h3>Keep the desk running</h3><p class="muted">The desk only watches while this window is open. To keep copying with it closed, paste this into PowerShell once:</p>
+    <code class="cmd">schtasks /Create /SC MINUTE /MO 5 /TN "AI Hedge Fund FOMO desk" /TR "cmd /c aihf fomo" /F</code>
+    <p class="muted" style="font-size:12px">It checks every 5 minutes. Top traders move fast, so a closed window means copies land later and cost more. To stop it: <code>schtasks /Delete /TN "AI Hedge Fund FOMO desk" /F</code></p>
+    <div class="foot"><button class="btn gold" data-act="close">Got it</button></div>`);
+}
+function fomoResetModal() {
+  modal(`<h3>Reset the copy fund?</h3><p class="muted">Clears the pretend book and starts again. The leaderboard and the traders you follow are kept.</p>
+    <form id="fomo-reset-form"><div class="field"><label class="label" for="fr-cap">Starting money (pretend)</label><input id="fr-cap" inputmode="decimal" value="${S.fomo.settings.capital}"></div>
+    <div class="foot"><button type="button" class="btn ghost" data-act="close">Cancel</button><button class="btn red" type="submit">Reset</button></div></form>`);
+  $("#fomo-reset-form").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    try { S.fomo = await api("/api/fomo/reset", { capital: Number($("#fr-cap").value.replace(/[$,\s]/g, "")) }); closeModal(); renderFomo(); toast("Copy fund reset"); }
+    catch (e) { toast(e.message); }
+  });
+}
+
 /* ---------------------------------------------------------------- screens */
 function render() {
   $("#demo").innerHTML = S.demo ? `<div class="demo-banner">DEMO · sample data, not a real fund · run "aihf web" on your computer to play</div>` : "";
-  if (S.lab) renderLab(); else if (S.fund) renderFund(); else renderHome();
+  if (S.fomo) renderFomo(); else if (S.lab) renderLab(); else if (S.fund) renderFund(); else renderHome();
 }
 
 function topbar(right = "") {
@@ -822,7 +947,7 @@ function renderHome() {
       <div class="meta">${lead == null ? "Not played yet" : `${lead >= 0 ? "Ahead of" : "Behind"} ${esc(f.benchmark)} by ${(Math.abs(lead) * 100).toFixed(1)} pts`}${f.last_session ? ` · last day ${day(f.last_session)}` : ""}</div>
     </button>`;
   }).join("");
-  $("#app").innerHTML = `${topbar()}${coinBanner()}${highScores()}${autoplayPanel()}
+  $("#app").innerHTML = `${topbar()}${coinBanner()}${highScores()}${autoplayPanel()}${fomoCard()}
     <header style="display:flex;justify-content:space-between;align-items:center;margin:6px 0 14px;gap:12px;flex-wrap:wrap">
       <h2 style="font-size:22px">Select a save file</h2>
       <span style="display:flex;gap:12px;align-items:center"><span class="label">${funds.length} fund${funds.length === 1 ? "" : "s"}</span>
@@ -1223,8 +1348,14 @@ document.addEventListener("click", async (ev) => {
   if (t.dataset.years) { S.lab.form.mandate = $("#lab-plan").value; S.lab.form.universe = $("#lab-stocks").value; S.lab.form.years = Number(t.dataset.years); return renderLab(); }
   if (t.dataset.run) return openLab(t.dataset.run);
   switch (t.dataset.act) {
-    case "home": S.fund = null; S.lab = null; clearInterval(S.labPoll); S.freshDay = null; await refreshApp().catch(() => {}); return render();
+    case "home": S.fund = null; S.lab = null; S.fomo = null; clearInterval(S.labPoll); clearInterval(S.fomoPoll); S.freshDay = null; await refreshApp().catch(() => {}); return render();
     case "lab": return openLab();
+    case "fomo": return openFomo();
+    case "fomo-schedule": return fomoScheduleModal();
+    case "fomo-reset": return fomoResetModal();
+    case "fomo-run":
+      try { S.fomo = await api("/api/fomo/run", {}); S.fomo.busy = true; renderFomo(); toast("Checking FOMO now"); setTimeout(async () => { try { S.fomo = await api("/api/fomo"); if (S.fomo) renderFomo(); } catch { /* fine */ } }, 4000); } catch (e) { toast(e.message); }
+      return;
     case "lab-cancel": try { await api("/api/backtests/cancel", {}); } catch (e) { toast(e.message); } return;
     case "lab-paper": { const plan = t.dataset.plan, stocks = t.dataset.stocks; S.lab = null; S.fund = null; render(); return newGameModal("", { mandate: plan, universe: stocks }); }
     case "alerts": await pollAlerts(); return alertsModal();
@@ -1260,7 +1391,10 @@ let resizeTimer; window.addEventListener("resize", () => { clearTimeout(resizeTi
   if (S.lab) renderLab();
 }, 120); });
 
-document.addEventListener("submit", (ev) => { if (ev.target.id === "lab-form") { ev.preventDefault(); startBacktest(); } });
+document.addEventListener("submit", (ev) => {
+  if (ev.target.id === "lab-form") { ev.preventDefault(); startBacktest(); }
+  if (ev.target.id === "fomo-form") { ev.preventDefault(); saveFomo(); }
+});
 document.addEventListener("change", (ev) => {
   if (ev.target.id === "lab-plan" && S.lab) { S.lab.form.mandate = ev.target.value; S.lab.form.universe = SUGGEST_STOCKS[ev.target.value] || ""; renderLab(); }
 });
@@ -1268,7 +1402,7 @@ document.addEventListener("change", (ev) => {
 // Background refresh: alerts everywhere; the home screen also picks up auto-play progress.
 setInterval(async () => {
   await pollAlerts();
-  if (!S.demo && !S.fund && !S.lab && !$("#layer").innerHTML) { try { await refreshApp(); renderHome(); } catch { /* offline: keep the screen */ } }
+  if (!S.demo && !S.fund && !S.lab && !S.fomo && !$("#layer").innerHTML) { try { await refreshApp(); renderHome(); } catch { /* offline: keep the screen */ } }
 }, 20000);
 
 /* ------------------------------------------------------------------ demo */
@@ -1335,6 +1469,7 @@ function demoData() {
   const state = { data_key_set: false, data_source: "yahoo", data_label: "Yahoo Finance (free, prices only)", data_ready: true, model: { id: "deepseek-flash", label: "DeepSeek V4.1 Flash", provider: "DeepSeek", key_env: "DEEPSEEK_API_KEY", key_set: true },
     models: [{ id: "deepseek-flash", label: "DeepSeek V4.1 Flash", provider: "DeepSeek", key_env: "DEEPSEEK_API_KEY", key_set: true }],
     autoplay: { enabled: true, checking: false, last_check: null, next_check: null, results: [] },
+    fomo_card: { enabled: true, nav: 1047.9, return_pct: 0.0479, followed: 2 },
     mandates: [{ file: "example", ...spec }], leaderboard: ["demo-fund", "copy-desk-trial", "tech-trio"],
     funds: [summary,
       { ...summary, name: "copy-desk-trial", mandate: "copy-desk", universe: ["AAPL", "OXY", "KO", "AXP"], sessions: 12, nav: cap * 0.987, return_pct: -0.013, benchmark_return_pct: 0.004, lead: -0.017, max_drawdown_pct: -0.031, place: 2, game: demoGame(days.slice(0, 12), { opening_bell: 0, first_trade: 1, week_one: 4, copycat: 2 }) },
@@ -1363,6 +1498,23 @@ function demoGame(days, unlocked) {
   const rank = [[17, "Legend"], [12, "Partner"], [8, "Portfolio Manager"], [5, "Trader"], [3, "Analyst"], [1, "Intern"]].find(([l]) => level >= l)[1];
   return { xp, level, rank, level_floor: 25 * level * (level - 1), level_next: 25 * (level + 1) * level, unlocked: n, badges };
 }
+function demoFomo() {
+  const hist = []; let nav = 1000, sol = 185; const t0 = Date.UTC(2026, 9, 20);
+  for (let i = 0; i < 72; i++) { nav *= 1 + (Math.sin(i / 5) * 0.012 + 0.002); sol *= 1 + Math.cos(i / 7) * 0.006; hist.push({ t: new Date(t0 + i * 3600e3).toISOString(), nav: Math.round(nav * 100) / 100, sol }); }
+  const w = (n) => "Demo" + n.repeat(36) + "x9";
+  return { nav: hist.at(-1).nav, capital: 1000, cash: 612.4, return_pct: hist.at(-1).nav / 1000 - 1, sol_hold: 1000 * sol / 185, sol_return_pct: sol / 185 - 1,
+    realized: 48.2, fees: 6.1, copies: 14, started: "2026-10-20T00:00:00Z", avg_lag: 0.034, win_rate: 0.56, busy: false,
+    positions: [{ mint: "m1", symbol: "BONK", value: 52.1, cost: 40, pnl_pct: 0.30, lag: 0.021, from: ["7xKX…9fQa"], opened: "2026-10-22T03:00:00Z" },
+      { mint: "m2", symbol: "WIF", value: 31.7, cost: 40, pnl_pct: -0.21, lag: 0.058, from: ["Fq3d…a1Lm", "7xKX…9fQa"], opened: "2026-10-22T19:00:00Z" }],
+    history: hist, events: [{ t: "2026-10-22T19:04:00Z", kind: "buy", text: "Copied Fq3d…a1Lm: bought $60 of WIF (2+ top traders buying), +5.8% vs their price, 41s behind." },
+      { t: "2026-10-22T11:30:00Z", kind: "sell", text: "Sold all of POPCAT (7xKX…9fQa sold 100% of theirs): +$18 (+45%)." },
+      { t: "2026-10-22T09:12:00Z", kind: "skip", text: "Skipped NEWCOIN that Fq3d…a1Lm bought: pool too small ($8,400)." }],
+    leaderboard: [{ wallet: w("A"), short: "7xKX…9fQa", realized: 18420, win_rate: 0.71, closed: 14, trades: 96, eligible: true, following: true, best: { symbol: "POPCAT", profit: 6200 } },
+      { wallet: w("B"), short: "Fq3d…a1Lm", realized: 9350, win_rate: 0.62, closed: 21, trades: 140, eligible: true, following: true, best: { symbol: "WIF", profit: 2900 } },
+      { wallet: w("C"), short: "3mPz…kk2B", realized: 31000, win_rate: 1, closed: 1, trades: 3, eligible: false, following: false, best: { symbol: "LUCKY", profit: 31000 } }],
+    followed: 2, coverage: { windows: 24, hours: 72, full: false }, last_poll: null, last_collect: null, errors: {},
+    config: {}, settings: { enabled: true, follow: 10, slot_pct: 0.04, min_liquidity: 30000, capital: 1000, stop_loss: 0.5, max_positions: 20 }, bitquery_set: true, rpc_custom: false };
+}
 const DEMO_ALERTS = [
   { id: "d1", fund: "copy-desk-trial", session: "2026-10-12", kind: "insider", label: "Insider buying", level: "good", ticker: "KO", title: "KO: a cluster of insiders buying", body: "3 insiders bought $1,240,000 on the open market in 90 days. A cluster buy, the strongest kind." },
   { id: "d2", fund: "demo-fund", session: "2026-10-09", kind: "pump", label: "Pump alarm", level: "warn", ticker: "NVDA", title: "NVDA: pump alarm", body: "NVDA spiked on unusually heavy trading. demo-fund stays out of it for now." },
@@ -1373,6 +1525,7 @@ async function demoApi(path, body) {
   if (path === "/api/state") return DEMO.state;
   if (path === "/api/alerts") return { alerts: DEMO_ALERTS, settings: { phone: false, kinds: Object.keys(KIND_LABELS) }, phone_ready: false };
   if (path === "/api/backtests") return { status: { state: "idle" }, runs: [] };
+  if (path === "/api/fomo") return demoFomo();
   if (body !== undefined) throw new Error("Demo mode: this is a preview with sample data. Run \"aihf web\" on your computer to play for real.");
   if (path.endsWith("/plan")) throw new Error("Demo mode: playing a day needs the app running on your computer (aihf web).");
   const name = decodeURIComponent(path.split("/")[3]);

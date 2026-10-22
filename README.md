@@ -75,6 +75,15 @@ The home screen opens on **High Scores**: every fund ranked by how far it is ahe
 
 **Backtest lab.** Replay any plan over 1, 3, 5 or 10 years and watch it race the S&P 500 day by day, then see return, worst drop and Sharpe against the index. Results are saved in `~/.hedge-fund/research/` beside terminal backtests and feed the go-live check. Plans with AI analysts ask you to confirm the estimated number of paid AI calls first.
 
+**FOMO desk.** Follows the top traders on [FOMO](https://fomo.family), the social crypto trading app, and paper-copies their trades as they make them. Paper money only: nothing here can sign a transaction or touch a wallet.
+
+- *Finding them.* Every FOMO trade is signed on Solana by one FOMO wallet, so its trades are public. Every 3 hours the desk saves FOMO's trades per trader and token from [Bitquery](https://bitquery.io) (a free account; the desk uses ~40 of the 10,000 free points a day) and rebuilds the leaderboard: realized profit over 7 days at average cost, at least 5 closed positions, at least half of them winners.
+- *Following them.* Every minute it reads the followed wallets' new transactions straight from Solana (free public data, or a free Helius/QuickNode address in `SOLANA_RPC_URL`) and prices tokens with DexScreener.
+- *Copying.* A followed buy is copied at the price *now*, with FOMO's 0.5% fee and estimated slippage: 4% of the fund per copy, 6% when two top traders buy the same token within a day, skipping pools under $30k or younger than 10 minutes. A followed sell is mirrored in the same proportion. Stop-loss at -50%, 14-day time limit, a token with no price for a day is written off. The desk records the *lag cost* of each copy: how much more it paid than the trader. That number decides whether riding behind them can work.
+- The FOMO desk screen shows the copy fund against simply holding SOL, open copies, the rebuilt leaderboard, and a live trade feed; copies and sells can ping your phone. `aihf fomo` runs one round from Task Scheduler.
+
+Honest limits: most memecoins go to zero, followers always buy after the leader, and seven days of leaderboard is a small sample. FOMO hasn't published its signing wallet; Bitquery identified it from on-chain activity, so if FOMO changes it the desk stops finding new traders until it's updated.
+
 It serves this computer only (127.0.0.1) and needs no extra install. `--port 8080` to move it, `--no-browser` to skip opening a tab. Backtesting is still in the terminal app.
 
 ### Free data

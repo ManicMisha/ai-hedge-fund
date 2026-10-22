@@ -34,6 +34,8 @@ from urllib.parse import urlparse
 
 from hedge_fund import alerts
 from hedge_fund.autoplay import catch_up
+from hedge_fund.fomo import Desk, event_alert
+from hedge_fund.fomo import leaderboard as fomo_board
 from hedge_fund.data.protocol import DataClient
 from hedge_fund.fund import Fund, FundSpec, load_spec, normalize_universe
 from hedge_fund.llm import load_api_models, provider_for
@@ -140,6 +142,7 @@ class Dashboard:
         save_key: Callable[[str, str], object] | None = None,
         push: Callable[[dict], None] | None = None,
         backtest_fund_builder: Callable[[FundSpec], Fund] | None = None,
+        fomo_sources: dict | None = None,
     ) -> None:
         self.paper_root = Path(paper_root)
         self.mandates_root = Path(mandates_root)
@@ -153,6 +156,7 @@ class Dashboard:
         self.runs = Runs()
         self.autoplay = AutoPlay(self)
         self.lab = backtests.BacktestRunner(self.research_root, data, backtest_fund_builder)
+        self.fomo = FomoRunner(self, home / "fomo", fomo_sources or {})
         if save_key is None:
             from hedge_fund.tui.keys import save_credential as save_key
         self.save_key = save_key
@@ -162,6 +166,7 @@ class Dashboard:
     def state(self) -> dict:
         return {**views.app_state(self.paper_root, self.mandates_root),
                 "autoplay": {**self.autoplay.status(), "enabled": self.settings()["autoplay"]},
+                "fomo_card": {**self.fomo.card(), "enabled": self.settings()["fomo"]["enabled"]},
                 "phone_ready": alerts.ntfy_target() is not None}
 
     def fund(self, name: str) -> dict:
@@ -172,8 +177,33 @@ class Dashboard:
         return load_settings(self.settings_path)
 
     def alerts(self) -> dict:
-        return {"alerts": alerts.all_alerts(list_deployed(self.paper_root), research_dir=self.research_root),
+        rows = alerts.all_alerts(list_deployed(self.paper_root), research_dir=self.research_root) + self.fomo.alert_rows()
+        rows.sort(key=lambda a: (a["session"], a["id"]), reverse=True)
+        return {"alerts": rows[:100],
                 "settings": self.settings()["alerts"], "phone_ready": alerts.ntfy_target() is not None}
+
+    def fomo_status(self) -> dict:
+        return {**self.fomo.status(), "settings": self.settings()["fomo"],
+                "bitquery_set": bool(os.environ.get("BITQUERY_TOKEN", "").strip()),
+                "rpc_custom": bool(os.environ.get("SOLANA_RPC_URL", "").strip())}
+
+    def fomo_settings(self, body: dict) -> dict:
+        self.update_settings({"fomo": body})
+        self.fomo.configure(self.settings()["fomo"])
+        if body.get("enabled") is True:
+            self.fomo.poke()
+        return self.fomo_status()
+
+    def fomo_run(self) -> dict:
+        self.fomo.poke(force=True)
+        return self.fomo_status()
+
+    def fomo_reset(self, body: dict) -> dict:
+        capital = body.get("capital")
+        if capital is not None:
+            self.fomo_settings({"capital": capital})
+        self.fomo.reset()
+        return self.fomo_status()
 
     def backtest_list(self) -> dict:
         return {"status": self.lab.status(), "runs": backtests.list_summaries(self.research_root)}
@@ -280,6 +310,8 @@ class Dashboard:
             raise ApiError(HTTPStatus.BAD_REQUEST, f"unknown key {env_var!r}")
         if not value or any(c in value for c in "\r\n\0") or len(value) > 500:
             raise ApiError(HTTPStatus.BAD_REQUEST, "paste the key exactly as given: one line, no spaces around it")
+        if env_var == "SOLANA_RPC_URL" and not re.fullmatch(r"https://[^\s]+", value):
+            raise ApiError(HTTPStatus.BAD_REQUEST, "paste the full https:// address from your Solana data provider")
         if env_var == views.NTFY_VAR and not re.fullmatch(r"[A-Za-z0-9_-]{8,64}", value):
             raise ApiError(HTTPStatus.BAD_REQUEST, "a topic is 8 to 64 letters, numbers, dashes or underscores")
         if env_var == views.SEC_VAR and not re.fullmatch(r"[^@\s][^@]*\s+\S+@\S+\.\S+", value):
@@ -469,6 +501,109 @@ class AutoPlay:
 
 
 # ---------------------------------------------------------------------------
+# FOMO desk: find FOMO's top traders, follow them, paper-copy their trades
+# ---------------------------------------------------------------------------
+
+class FomoRunner:
+    """Every minute while switched on: save any finished 3-hour window of
+    FOMO trades (Bitquery) and re-pick the traders to follow, then read the
+    followed wallets' new trades (Solana) and copy them on paper."""
+
+    def __init__(self, app: "Dashboard", root: Path, sources: dict, interval: float = 60.0) -> None:
+        self.app, self.root, self.sources, self.interval = app, root, sources, interval
+        self._lock = threading.Lock()
+        self._wake = threading.Event()
+        self._force = False
+        self._desk: Desk | None = None
+        self._busy = False
+        self._thread: threading.Thread | None = None
+
+    def desk(self) -> Desk:
+        if self._desk is None:
+            config = {k: v for k, v in self.app.settings()["fomo"].items() if k != "enabled"}
+            self._desk = Desk(self.root, config, **self.sources)
+        return self._desk
+
+    def configure(self, settings: dict) -> None:
+        with self._lock:
+            self.desk().config.update({k: v for k, v in settings.items() if k != "enabled"})
+
+    def reset(self) -> None:
+        with self._lock:
+            self.desk().reset(self.app.settings()["fomo"]["capital"])
+
+    def status(self) -> dict:
+        with self._lock:
+            return {**self.desk().status(), "busy": self._busy}
+
+    def card(self) -> dict:
+        """The few numbers the home screen shows, without rebuilding the leaderboard."""
+        with self._lock:
+            desk = self.desk()
+            nav = desk._nav()
+            capital = desk.state["capital"]
+            return {"nav": round(nav, 2), "return_pct": nav / capital - 1 if capital else 0.0,
+                    "followed": len(desk.state["followed"])}
+
+    def alert_rows(self) -> list[dict]:
+        with self._lock:
+            events = list(self.desk().state["events"])
+        rows = []
+        for e in events:
+            a = event_alert(e)
+            if a:
+                rows.append({**a, "id": f"fomo:{e['t']}:{e.get('mint', '')}:{e['kind']}", "fund": "FOMO desk",
+                             "session": e["t"][:10], "label": "FOMO copy", "ticker": e.get("symbol")})
+        return rows
+
+    def start(self, first_delay: float = 10.0) -> None:
+        if self._thread is None:
+            self._thread = threading.Thread(target=self._loop, args=(first_delay,), name="aihf-fomo", daemon=True)
+            self._thread.start()
+
+    def poke(self, force: bool = False) -> None:
+        self._force = self._force or force
+        self._wake.set()
+
+    def _loop(self, first_delay: float) -> None:
+        self._wake.wait(first_delay)
+        while True:
+            self._wake.clear()
+            force, self._force = self._force, False
+            if force or self.app.settings()["fomo"]["enabled"]:
+                try:
+                    self.cycle()
+                except Exception:  # never let the timer die; errors show on the page
+                    pass
+            self._wake.wait(self.interval)
+
+    def cycle(self) -> list[dict]:
+        with self._lock:
+            if self._busy:
+                return []
+            self._busy = True
+        try:
+            with self._lock:
+                desk = self.desk()
+            if fomo_board.due_windows(desk.store) or desk.state["last_collect"] is None:
+                desk.collect()
+            events = desk.poll()
+        finally:
+            with self._lock:
+                self._busy = False
+        settings = self.app.settings()
+        if settings["alerts"]["phone"] and "fomo" in settings["alerts"]["kinds"] and alerts.ntfy_target():
+            for event in events[:5]:
+                alert = event_alert(event)
+                if alert:
+                    try:
+                        self.app.push(alert)
+                    except Exception:
+                        break
+        return events
+
+
+# ---------------------------------------------------------------------------
 # HTTP
 # ---------------------------------------------------------------------------
 
@@ -521,6 +656,8 @@ def make_handler(app: Dashboard, port: int) -> type[BaseHTTPRequestHandler]:
                 return app.alerts()
             if path == "/api/backtests":
                 return app.backtest_list()
+            if path == "/api/fomo":
+                return app.fomo_status()
             bt = _BACKTEST_ROUTE.match(path)
             if bt:
                 return app.backtest(bt.group(1))
@@ -552,6 +689,12 @@ def make_handler(app: Dashboard, port: int) -> type[BaseHTTPRequestHandler]:
                 return app.start_backtest(body)
             if path == "/api/backtests/cancel":
                 return app.cancel_backtest()
+            if path == "/api/fomo/settings":
+                return app.fomo_settings(body)
+            if path == "/api/fomo/run":
+                return app.fomo_run()
+            if path == "/api/fomo/reset":
+                return app.fomo_reset(body)
             match = _FUND_ROUTE.match(path)
             if match:
                 name, action = match.groups()
@@ -626,6 +769,7 @@ def serve(port: int = 8000, open_browser: bool = True) -> None:
 
     app = Dashboard(PAPER_DIR, ensure_mandates_dir())
     app.autoplay.start()
+    app.fomo.start()
     try:
         server = make_server(app, port)
     except OSError as exc:
