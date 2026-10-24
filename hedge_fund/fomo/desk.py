@@ -26,6 +26,10 @@ from pathlib import Path
 from typing import Callable
 
 from hedge_fund.fomo import leaderboard as lb
+from hedge_fund.fomo.council import (
+    BENCH_MIN_CLOSED, BENCH_WIN_RATE, buy_council, crypto_hype, EUPHORIA, exit_checks, HYPE_VETO, Situation,
+    SOL_RISK_OFF_H24, votes_json,
+)
 from hedge_fund.fomo.sources import (
     Bitquery, DexScreener, SetupError, SOL_MINT, SolanaRPC, SourceError, STABLES, Swap,
 )
@@ -40,6 +44,7 @@ CLUSTER_WINDOW_S = 86_400
 TIME_LIMIT_S = 14 * 86_400
 NO_PRICE_WRITE_OFF_S = 86_400
 HISTORY_EVERY_S = 900
+HYPE_RECHECK_S = 6 * 3600
 MAX_SIGS_PER_POLL = 15
 KEEP_EVENTS = 400
 
@@ -58,7 +63,9 @@ def short(wallet: str) -> str:
 class Desk:
     def __init__(self, root: Path, config: dict | None = None, *, rpc: SolanaRPC | None = None,
                  dex: DexScreener | None = None, bitquery: Callable[[], Bitquery] | None = None,
-                 clock: Callable[[], float] = time.time) -> None:
+                 clock: Callable[[], float] = time.time,
+                 hype: Callable[[str, str], dict | None] | None = None,
+                 market_flags: Callable[[], list[str]] | None = None) -> None:
         self.root = Path(root)
         self.root.mkdir(parents=True, exist_ok=True)
         self.config = {**DEFAULTS, **(config or {})}
@@ -66,6 +73,8 @@ class Desk:
         self.dex = dex or DexScreener()
         self.bitquery = bitquery or (lambda: Bitquery())
         self.clock = clock
+        self.hype = hype if hype is not None else (lambda symbol, mint: crypto_hype(symbol, mint, self.root / "hype"))
+        self.market_flags = market_flags or (lambda: [])
         self.store = lb.Store(self.root / "fomo.sqlite")
         self.state_path = self.root / "desk.json"
         self.state = self._load()
@@ -77,7 +86,7 @@ class Desk:
         return {"capital": capital, "cash": capital, "started": _iso(self.clock()), "positions": {}, "followed": [],
                 "cursors": {}, "holdings": {}, "recent_buys": {}, "history": [], "sol_start": None, "sol_last": None,
                 "events": [], "realized": 0.0, "fees": 0.0, "copies": 0, "last_poll": None, "last_collect": None,
-                "errors": {}}
+                "errors": {}, "records": {}, "risk_off": [], "heat": None}
 
     def _load(self) -> dict:
         try:
@@ -92,9 +101,9 @@ class Desk:
     def reset(self, capital: float | None = None) -> None:
         if capital is not None:
             self.config["capital"] = float(capital)
-        followed, cursors = self.state.get("followed", []), self.state.get("cursors", {})
+        keep = {k: self.state.get(k) for k in ("followed", "cursors", "records")}
         self.state = self._fresh()
-        self.state["followed"], self.state["cursors"] = followed, cursors  # keep watching who we watch
+        self.state.update({k: v for k, v in keep.items() if v is not None})  # keep who we watch and what we learned
         self.save()
 
     def _event(self, kind: str, **fields) -> dict:
@@ -123,7 +132,7 @@ class Desk:
         else:
             self._error("bitquery", None)
         board = lb.leaderboard(self.store, now)
-        picks = [w["wallet"] for w in board if w["eligible"]][: int(self.config["follow"])]
+        picks = [w["wallet"] for w in board if w["eligible"] and not self.benched(w["wallet"])][: int(self.config["follow"])]
         if picks and picks != self.state["followed"]:  # an empty board (warming up, Bitquery down) changes nothing
             added = [w for w in picks if w not in self.state["followed"]]
             if added:
@@ -133,6 +142,12 @@ class Desk:
         self.state["last_collect"] = _iso(self.clock())
         self.save()
         return saved
+
+    def benched(self, wallet: str) -> bool:
+        """Copying this trader has been losing us money: stop following them."""
+        r = self.state["records"].get(wallet) or {}
+        closed = r.get("closed", 0)
+        return closed >= BENCH_MIN_CLOSED and (r.get("wins", 0) / closed < BENCH_WIN_RATE or r.get("pnl", 0.0) < 0)
 
     def watching(self) -> list[str]:
         """Followed traders, plus anyone whose trade we still hold a copy of."""
@@ -173,6 +188,11 @@ class Desk:
         if sol:
             self.state["sol_last"] = sol.price
             self.state["sol_start"] = self.state["sol_start"] or sol.price
+        risk_off = list(self.market_flags())
+        if sol and sol.change_h24 is not None and sol.change_h24 <= SOL_RISK_OFF_H24:
+            risk_off.insert(0, f"SOL down {-sol.change_h24:.0%} in a day")
+        self.state["risk_off"] = risk_off
+        self.state["heat"] = lb.heat(self.store)
         for swap in swaps:
             event = self._on_buy(swap, quotes) if swap.side == "buy" else self._on_sell(swap, quotes)
             if event:
@@ -212,24 +232,33 @@ class Desk:
             if swap.wallet not in pos["from"]:
                 pos["from"].append(swap.wallet)
             return None
-        skip = None
-        if q is None:
-            skip = "no price on DexScreener"
-        elif q.liquidity < self.config["min_liquidity"]:
-            skip = f"pool too small (${q.liquidity:,.0f})"
-        elif q.pair_created and now - q.pair_created / 1000 < MIN_POOL_AGE_S:
-            skip = "token launched minutes ago"
-        elif len(self.state["positions"]) >= self.config["max_positions"]:
-            skip = "already holding the maximum number of tokens"
-        if skip:
-            self._event("skip", **base, text=f"Skipped {symbol} that {short(swap.wallet)} bought: {skip}.")
+        if len(self.state["positions"]) >= self.config["max_positions"]:
+            self._event("skip", **base, text=f"Skipped {symbol} that {short(swap.wallet)} bought: already holding "
+                        f"{self.config['max_positions']} tokens.", votes=[])
+            return None
+        followed = self.state["followed"]
+        situation = Situation(
+            symbol=symbol, wallet_label=short(swap.wallet), usd=usd,
+            rank=followed.index(swap.wallet) if swap.wallet in followed else None,
+            their_price=their_price, price=q.price if q else None, liquidity=q.liquidity if q else 0.0,
+            pool_age_s=now - q.pair_created / 1000 if q and q.pair_created else None,
+            change_h1=q.change_h1 if q else None,
+            holders_buying=len({b["wallet"] for b in recent}),
+            record=self.state["records"].get(swap.wallet, {}), risk_off=self.state["risk_off"], heat=self.state["heat"],
+            min_liquidity=self.config["min_liquidity"], min_pool_age_s=MIN_POOL_AGE_S)
+        approved, mult, votes = buy_council(situation, hype=lambda: self.hype(symbol, swap.mint))
+        if not approved:
+            veto = next(v for v in votes if v.verdict == "veto")
+            self._event("skip", **base, votes=votes_json(votes),
+                        text=f"Skipped {symbol} that {short(swap.wallet)} bought. {veto.agent}: {veto.text}")
             return None
         nav = self._nav()
-        size = nav * self.config["slot_pct"] * (1.5 if cluster else 1.0)
+        size = nav * self.config["slot_pct"] * mult
         size = min(size, self.state["cash"], q.liquidity * MAX_POOL_SHARE)
         if size < 5:
-            self._event("skip", **base, text=f"Skipped {symbol}: not enough cash left.")
+            self._event("skip", **base, text=f"Skipped {symbol}: not enough cash left.", votes=votes_json(votes))
             return None
+        cluster = situation.holders_buying >= 2
         slip = BASE_SLIPPAGE + size / q.liquidity
         fill = q.price * (1 + slip)
         fee = size * FEE
@@ -242,12 +271,14 @@ class Desk:
         self.state["positions"][swap.mint] = {
             "symbol": symbol, "qty": qty, "cost": size, "entry": fill, "last": q.price, "peak": q.price,
             "opened": now, "from": [swap.wallet], "their_price": their_price, "lag": lag, "no_price_since": None,
+            "realized": 0.0, "took_profit": False, "hype_checked": now, "hype_cut": False,
         }
         return self._event("buy", **base, usd=round(size, 2), price=fill, lag=lag, delay=delay, cluster=cluster,
+                           mult=round(mult, 2), votes=votes_json(votes),
                            text=f"Copied {short(swap.wallet)}: bought ${size:,.0f} of {symbol}"
                                 f"{' (2+ top traders buying)' if cluster else ''}"
                                 f"{f', {lag:+.1%} vs their price' if lag is not None else ''}"
-                                f"{f', {delay}s behind' if delay is not None else ''}.")
+                                f"{f', {delay}s behind' if delay is not None else ''}. Team size x{mult:.2f}.")
 
     def _on_sell(self, swap: Swap, quotes: dict) -> dict | None:
         held = self.state["holdings"].setdefault(swap.wallet, {})
@@ -277,7 +308,13 @@ class Desk:
         self.state["cash"] += proceeds
         self.state["fees"] += fee
         self.state["realized"] += profit
+        pos["realized"] = pos.get("realized", 0.0) + profit
+        trader = pos["from"][0]  # the trader we copied: their record learns from every outcome
+        rec = self.state["records"].setdefault(trader, {"closed": 0, "wins": 0, "pnl": 0.0})
+        rec["pnl"] = round(rec["pnl"] + profit, 2)
         if share >= 0.999:
+            rec["closed"] += 1
+            rec["wins"] += 1 if pos["realized"] > 0 else 0
             del self.state["positions"][mint]
         else:
             pos["qty"] -= qty
@@ -297,6 +334,25 @@ class Desk:
                     out.append(self._sell(mint, 1.0, quotes, "no price for a day, written off", write_off=True))
                 continue
             pos["no_price_since"] = None
+            pos["peak"] = max(pos["peak"], q.price)
+            tight = bool(self.state["risk_off"]) or (self.state["heat"] or 0) >= EUPHORIA
+            planned = exit_checks(pos, q.price, tight=tight)
+            if planned:
+                share, why = planned
+                if share < 1.0:
+                    pos["took_profit"] = True
+                out.append(self._sell(mint, share, quotes, why))
+                continue
+            if not pos.get("hype_cut") and now - pos.get("hype_checked", pos["opened"]) >= HYPE_RECHECK_S:
+                pos["hype_checked"] = now
+                try:
+                    verdict = self.hype(pos["symbol"], mint)
+                except Exception:
+                    verdict = None
+                if verdict and float(verdict.get("pump_risk", 0)) >= HYPE_VETO:
+                    pos["hype_cut"] = True
+                    out.append(self._sell(mint, 0.5, quotes, "Hype Watch sees coordinated pumping on X: taking half off"))
+                    continue
             if q.price <= pos["entry"] * (1 - self.config["stop_loss"]):
                 out.append(self._sell(mint, 1.0, quotes, f"stop-loss at {-self.config['stop_loss']:.0%}"))
             elif now - pos["opened"] > TIME_LIMIT_S:
@@ -343,7 +399,24 @@ class Desk:
             "followed": len(followed), "coverage": lb.coverage(self.store, now),
             "last_poll": self.state["last_poll"], "last_collect": self.state["last_collect"],
             "errors": self.state["errors"], "config": self.config,
+            "risk_off": self.state["risk_off"], "heat": self.state["heat"],
+            "records": [{"wallet": short(w), "closed": r["closed"], "wins": r["wins"], "pnl": r["pnl"],
+                         "benched": self.benched(w)} for w, r in self.state["records"].items()],
+            "council": council_stats(self.state["events"]),
         }
+
+
+def council_stats(events: list[dict]) -> dict:
+    """How often each agent stopped a copy, from the recent trade feed."""
+    vetoes: dict[str, int] = {}
+    approved = 0
+    for e in events:
+        if e["kind"] == "buy":
+            approved += 1
+        for v in e.get("votes") or []:
+            if v["verdict"] == "veto":
+                vetoes[v["agent"]] = vetoes.get(v["agent"], 0) + 1
+    return {"approved": approved, "vetoed": sum(vetoes.values()), "vetoes_by_agent": vetoes}
 
 
 def event_alert(event: dict) -> dict | None:

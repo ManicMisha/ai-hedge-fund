@@ -32,7 +32,8 @@ from pathlib import Path
 from typing import Callable, Iterator
 from urllib.parse import urlparse
 
-from hedge_fund import alerts
+from hedge_fund import alerts, intel
+from hedge_fund.briefing import latest_briefing, write_briefing
 from hedge_fund.autoplay import catch_up
 from hedge_fund.fomo import Desk, event_alert
 from hedge_fund.fomo import leaderboard as fomo_board
@@ -143,6 +144,7 @@ class Dashboard:
         push: Callable[[dict], None] | None = None,
         backtest_fund_builder: Callable[[FundSpec], Fund] | None = None,
         fomo_sources: dict | None = None,
+        llm_factory: Callable[[], object] | None = None,
     ) -> None:
         self.paper_root = Path(paper_root)
         self.mandates_root = Path(mandates_root)
@@ -157,6 +159,10 @@ class Dashboard:
         self.autoplay = AutoPlay(self)
         self.lab = backtests.BacktestRunner(self.research_root, data, backtest_fund_builder)
         self.fomo = FomoRunner(self, home / "fomo", fomo_sources or {})
+        self.briefings_root = home / "briefings"
+        self.llm_factory = llm_factory
+        self._briefing_job: dict = {"state": "idle"}
+        self._flags_cache: tuple[float, list[str]] = (0.0, [])
         if save_key is None:
             from hedge_fund.tui.keys import save_credential as save_key
         self.save_key = save_key
@@ -181,6 +187,66 @@ class Dashboard:
         rows.sort(key=lambda a: (a["session"], a["id"]), reverse=True)
         return {"alerts": rows[:100],
                 "settings": self.settings()["alerts"], "phone_ready": alerts.ntfy_target() is not None}
+
+    def stock_flags(self) -> list[str]:
+        """The stock side's Market Shield, shared with the FOMO desk: if any
+        fund's latest plan was cut because the S&P 500 is below its 200-day
+        average, crypto copies are halved too. Cached for ten minutes."""
+        import time as _time
+        at, flags = self._flags_cache
+        if _time.time() - at < 600:
+            return flags
+        flags = []
+        for directory in list_deployed(self.paper_root):
+            try:
+                records = Ledger(directory).records()
+            except Exception:
+                continue
+            decision = next((r.decision for r in reversed(records) if r.decision is not None), None)
+            if decision is not None and any(c.limit == "market_filter" for c in decision.clamps):
+                flags = ["S&P 500 below its 200-day average (stock desk's Market Shield)"]
+                break
+        self._flags_cache = (_time.time(), flags)
+        return flags
+
+    def team(self) -> dict:
+        """Everything the Team room shows: the board, every desk's money, the briefing."""
+        funds = [views.fund_summary(d) for d in list_deployed(self.paper_root)]
+        desk = self.fomo.status()
+        with self.fomo._lock:
+            events = list(self.fomo.desk().state["events"])
+        board = intel.board(list_deployed(self.paper_root), events, desk.get("risk_off"))
+        live = [f for f in funds if not f.get("error")]
+        capital = sum(f["capital"] for f in live) + desk["capital"]
+        value = sum(f["nav"] for f in live) + desk["nav"]
+        return {**board, "capital": capital, "value": value, "return_pct": value / capital - 1 if capital else 0.0,
+                "desks": [{"name": f["name"], "kind": "stocks", "nav": f["nav"], "return_pct": f["return_pct"], "lead": f.get("lead")} for f in live]
+                + [{"name": "FOMO desk", "kind": "crypto", "nav": desk["nav"], "return_pct": desk["return_pct"],
+                    "lead": desk["return_pct"] - desk["sol_return_pct"] if desk.get("sol_return_pct") is not None else None}],
+                "briefing": latest_briefing(self.briefings_root), "briefing_job": dict(self._briefing_job),
+                "model": views.current_model()}
+
+    def start_briefing(self) -> dict:
+        if self._briefing_job.get("state") == "running":
+            raise ApiError(HTTPStatus.CONFLICT, "The manager is already writing a briefing.")
+        model = views.current_model()
+        if self.llm_factory is None and model["key_env"] and not model["key_set"]:
+            raise ApiError(HTTPStatus.PRECONDITION_REQUIRED, f"Add your {model['provider']} key for {model['label']} first (Keys & model).")
+        self._briefing_job = {"state": "running", "started": _now()}
+
+        def work() -> None:
+            try:
+                from hedge_fund.llm import make_llm
+                llm = (self.llm_factory or (lambda: make_llm(timeout=120)))()
+                team = self.team()
+                funds = [views.fund_summary(d) for d in list_deployed(self.paper_root)]
+                write_briefing(llm, team, funds, self.fomo.status(), self.briefings_root)
+                self._briefing_job = {"state": "done", "finished": _now()}
+            except Exception as exc:
+                self._briefing_job = {"state": "failed", "message": f"{type(exc).__name__}: {exc}"[:300]}
+
+        threading.Thread(target=work, name="aihf-briefing", daemon=True).start()
+        return {"briefing_job": dict(self._briefing_job)}
 
     def fomo_status(self) -> dict:
         return {**self.fomo.status(), "settings": self.settings()["fomo"],
@@ -521,7 +587,8 @@ class FomoRunner:
     def desk(self) -> Desk:
         if self._desk is None:
             config = {k: v for k, v in self.app.settings()["fomo"].items() if k != "enabled"}
-            self._desk = Desk(self.root, config, **self.sources)
+            sources = {"market_flags": self.app.stock_flags, **self.sources}
+            self._desk = Desk(self.root, config, **sources)
         return self._desk
 
     def configure(self, settings: dict) -> None:
@@ -658,6 +725,8 @@ def make_handler(app: Dashboard, port: int) -> type[BaseHTTPRequestHandler]:
                 return app.backtest_list()
             if path == "/api/fomo":
                 return app.fomo_status()
+            if path == "/api/team":
+                return app.team()
             bt = _BACKTEST_ROUTE.match(path)
             if bt:
                 return app.backtest(bt.group(1))
@@ -695,6 +764,8 @@ def make_handler(app: Dashboard, port: int) -> type[BaseHTTPRequestHandler]:
                 return app.fomo_run()
             if path == "/api/fomo/reset":
                 return app.fomo_reset(body)
+            if path == "/api/team/briefing":
+                return app.start_briefing()
             match = _FUND_ROUTE.match(path)
             if match:
                 name, action = match.groups()

@@ -243,6 +243,8 @@ class Quote:
     price: float          # USD
     liquidity: float      # USD in the deepest pool
     pair_created: int     # ms since epoch, 0 if unknown
+    change_h1: float | None = None    # price change over the last hour, 0.12 = +12%
+    change_h24: float | None = None
 
 
 class DexScreener:
@@ -274,5 +276,8 @@ class DexScreener:
                     continue
                 best = out.get(mint)
                 if best is None or liq > best.liquidity:  # the deepest pool sets the price
-                    out[mint] = Quote(mint, (base.get("symbol") or "?")[:20], price, liq, int(_num(pair.get("pairCreatedAt"))))
+                    moves = pair.get("priceChange") or {}
+                    pct = lambda k: _num(moves[k]) / 100 if moves.get(k) is not None else None
+                    out[mint] = Quote(mint, (base.get("symbol") or "?")[:20], price, liq, int(_num(pair.get("pairCreatedAt"))),
+                                      pct("h1"), pct("h24"))
         return out

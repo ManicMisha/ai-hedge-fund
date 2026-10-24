@@ -344,6 +344,25 @@ a.wallet { color: var(--mana); font-family: var(--display); text-decoration: non
 a.wallet:hover { text-decoration: underline; }
 @media (max-width: 760px) { .fomo-card { grid-template-columns: 1fr; } }
 
+/* Team room */
+.brief h4 { font-family: var(--display); font-size: 16px; color: var(--gold); margin: 14px 0 4px; }
+.brief h4:first-child { margin-top: 0; }
+.brief p { margin: 0 0 6px; line-height: 1.55; }
+.comms { display: grid; gap: 8px; max-height: 560px; overflow: auto; }
+.msg { display: grid; grid-template-columns: 36px 1fr; gap: 10px; padding: 8px; background: #140f27; border: 2px solid var(--edge); border-left-width: 5px; }
+.msg img { width: 36px; height: 36px; image-rendering: pixelated; background: #0c0918; }
+.msg.bull { border-left-color: var(--hp); } .msg.bear, .msg.veto { border-left-color: var(--dmg); } .msg.caution { border-left-color: var(--gold); }
+.msg .who { font-family: var(--display); font-size: 14px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.msg .who .faint { font-family: var(--body); font-size: 11px; }
+.msg .say { font-size: 12.5px; color: var(--ink); overflow-wrap: anywhere; }
+.agree { display: grid; gap: 8px; max-height: 560px; overflow: auto; }
+.agree .row { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; padding: 8px; background: #140f27; border: 2px solid var(--edge); }
+.agree .chips { grid-column: 1 / -1; display: flex; gap: 4px; flex-wrap: wrap; }
+.votes { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+.vote { font-size: 10.5px; padding: 1px 6px; border: 1px solid var(--edge); color: var(--muted); white-space: nowrap; }
+.vote.go, .vote.boost { color: var(--hp); border-color: #1f7a4c; } .vote.veto { color: #fff; background: #8c2338; border-color: #8c2338; }
+.vote.caution { color: var(--gold); border-color: var(--gold-deep); }
+
 @media (max-width: 960px) {
   .stats { grid-template-columns: 1fr 1fr; }
   .grid2 { grid-template-columns: minmax(0, 1fr); }
@@ -817,6 +836,7 @@ function renderFomo() {
     <div class="hud"><h2>FOMO desk</h2><span class="pill ${cfg.enabled ? "up" : "faint"}">${cfg.enabled ? "Running" : "Off"}</span>
       <span class="muted" style="font-size:12px">Paper money only · rides behind FOMO's top traders · started ${day(f.started)}</span></div>
     ${errs}
+    ${(f.risk_off || []).length || f.heat >= 2.5 ? `<div class="trim" style="margin:-6px 0 14px">${(f.risk_off || []).map((r) => `Market Shield: ${esc(r)}. Copies are half size.`).join(" ")} ${f.heat >= 2.5 ? `FOMO Meter: buying is ${f.heat.toFixed(1)}x normal, the crowd is euphoric. Copies are half size and stops are tighter.` : ""}</div>` : ""}
     <section class="stats">
       <div class="frame stat"><div class="label">Copy fund</div><div class="value num">${money(f.nav, f.nav < 1000)}</div>
         <div class="note"><span class="${cls(f.return_pct)}">${pct(f.return_pct, 2)}</span> from ${money(f.capital)} · cash ${money(f.cash)}</div></div>
@@ -848,7 +868,7 @@ function renderFomo() {
     <section class="grid2">
       <div class="frame"><header><h3>Trade feed</h3><span class="label">newest first</span></header>
         <div class="log">${(f.events || []).map((e) => `<div class="entry"><span class="when">${esc(new Date(e.t).toLocaleString([], { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }))}</span>
-          <span class="tag ${{ buy: "buy", sell: "sell", skip: "redo", follow: "plan" }[e.kind] || "redo"}">${esc({ buy: "Copy", sell: "Sell", skip: "Skip", follow: "Follow" }[e.kind] || e.kind)}</span><span class="what">${esc(e.text)}</span></div>`).join("") || `<div class="empty">Nothing yet. Copies appear here the moment a followed trader buys.</div>`}</div></div>
+          <span class="tag ${{ buy: "buy", sell: "sell", skip: "redo", follow: "plan" }[e.kind] || "redo"}">${esc({ buy: "Copy", sell: "Sell", skip: "Skip", follow: "Follow" }[e.kind] || e.kind)}</span><span class="what">${esc(e.text)}${voteChips(e.votes)}</span></div>`).join("") || `<div class="empty">Nothing yet. Copies appear here the moment a followed trader buys.</div>`}</div></div>
       <div class="frame"><header><h3>Desk settings</h3></header>
         <form id="fomo-form">
           <label class="switch" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="fm-on" ${cfg.enabled ? "checked" : ""}> Run the desk (every minute while this window is open)</label>
@@ -895,10 +915,81 @@ function fomoResetModal() {
   });
 }
 
+/* --------------------------------------------------------------- Team room */
+const STANCE = { bull: ["For", "up"], bear: ["Against", "down"], veto: ["Veto", "down"], caution: ["Caution", "warn"], info: ["Note", "flat"], clear: ["Clear", "flat"] };
+function spriteKind(kind) { return kind === "stock" ? "ai" : kind === "risk" ? "quant" : kind === "manager" ? "ai" : "tracker"; }
+async function openTeam() {
+  try { S.team = await api("/api/team"); } catch (e) { return toast(e.message); }
+  S.fund = null; S.lab = null; S.fomo = null; render(); window.scrollTo({ top: 0 });
+  clearInterval(S.teamPoll);
+  S.teamPoll = setInterval(async () => {
+    if (!S.team) return clearInterval(S.teamPoll);
+    try { S.team = await api("/api/team"); } catch { return; }
+    if (!$("#layer").innerHTML) renderTeam();
+  }, 20000);
+}
+function briefingHtml(text) {
+  return esc(text).split("\n").map((line) => line.startsWith("## ") ? `<h4>${line.slice(3)}</h4>` : line.trim() ? `<p>${line}</p>` : "").join("");
+}
+function voteChips(votes) {
+  if (!votes?.length) return "";
+  const icon = { go: "✔", boost: "▲", caution: "▼", veto: "✖", info: "·" };
+  return `<div class="votes">${votes.map((v) => `<span class="vote ${esc(v.verdict)}" title="${esc(v.agent)}: ${esc(v.text)}">${icon[v.verdict] || "·"} ${esc(v.agent)}</span>`).join("")}</div>`;
+}
+function renderTeam() {
+  $("#actions").innerHTML = "";
+  const t = S.team, job = t.briefing_job || { state: "idle" }, b = t.briefing;
+  const agreed = t.agreement.filter((r) => r.verdict === "Team agrees: buy").length;
+  const blocked = t.agreement.filter((r) => r.verdict === "Blocked").length;
+  $("#app").innerHTML = `${topbar(`<button class="btn small" data-act="home">◀ Saves</button>`)}
+    <div class="hud"><h2>Team room</h2><span class="muted" style="font-size:12px">Every agent on every desk, one board. The manager reads it all.</span></div>
+    <section class="stats">
+      <div class="frame stat"><div class="label">All desks · paper money</div><div class="value num">${money(t.value)}</div>
+        <div class="note"><span class="${cls(t.return_pct)}">${pct(t.return_pct, 2)}</span> on ${money(t.capital)}</div></div>
+      <div class="frame stat"><div class="label">Agents talking</div><div class="value num">${t.agents.length}</div><div class="note">${t.notes.length} recent notes</div></div>
+      <div class="frame stat"><div class="label">Team agrees</div><div class="value num up">${agreed}</div><div class="note">stocks or tokens with 3+ agents for and none against</div></div>
+      <div class="frame stat"><div class="label">Blocked</div><div class="value num ${blocked ? "down" : "flat"}">${blocked}</div><div class="note">an agent vetoed: the team stays out</div></div>
+    </section>
+    <section class="frame briefing" style="margin-bottom:18px"><header><h3>Manager's briefing</h3>
+      <span class="label">${b ? `${esc(new Date(b.t).toLocaleString([], { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }))} · ${esc(b.model)}` : "none yet"}</span></header>
+      ${job.state === "running" ? `<p class="muted">The manager is reading every agent's notes…</p>` : b ? `<div class="brief">${briefingHtml(b.text)}</div>` : `<p class="muted">Ask the manager to read the whole board and explain it in plain English: where the team agrees, where it's split, the risks, and what to watch.</p>`}
+      ${job.state === "failed" ? `<div class="error">${esc(job.message)}</div>` : ""}
+      <div class="foot" style="justify-content:flex-start;margin-top:12px"><button class="btn gold" data-act="briefing" ${job.state === "running" ? "disabled" : ""}>${b ? "New briefing" : "Get a briefing"}</button>
+        <span class="faint" style="font-size:12px;align-self:center">One AI call on ${esc(t.model?.label || "your model")}. Advice only: it never places or changes a trade.</span></div></section>
+    <section class="grid2">
+      <div class="frame"><header><h3>Team comms</h3><span class="label">newest first</span></header>
+        <div class="comms">${t.notes.slice(0, 60).map((n) => { const [label, c] = STANCE[n.stance] || STANCE.info;
+          return `<div class="msg ${esc(n.stance)}"><img alt="" src="${sprite(n.agent, spriteKind(n.kind))}">
+            <div style="min-width:0"><div class="who">${esc(n.agent)} <span class="faint">→ Manager · ${esc(n.desk)}${n.subject ? ` · ${esc(n.subject)}` : ""}</span> <span class="pill ${c}" style="font-size:10px">${label}</span></div>
+            <div class="say">${esc(n.text)}</div>${voteChips(n.votes)}<div class="faint" style="font-size:11px">${esc(n.t.length > 10 ? new Date(n.t).toLocaleString([], { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : day(n.t))}</div></div></div>`; }).join("") || `<div class="empty">Quiet so far. Notes appear as funds play days and the FOMO desk sees trades.</div>`}</div></div>
+      <div class="frame"><header><h3>Agreement map</h3><span class="label">who's for, who's against</span></header>
+        <div class="agree">${t.agreement.map((r) => `<div class="row"><div class="sub"><span class="disp">${esc(r.subject)}</span> <span class="faint" style="font-size:11px">${r.desks.map(esc).join(", ")}</span></div>
+          <span class="pill ${r.verdict === "Blocked" || r.verdict.endsWith("avoid") ? "down" : r.verdict.endsWith("buy") ? "up" : "warn"}">${esc(r.verdict)}</span>
+          <div class="chips">${r.bull.map((a) => `<span class="vote go">✔ ${esc(a)}</span>`).join("")}${r.bear.map((a) => `<span class="vote caution">✖ ${esc(a)}</span>`).join("")}${r.veto.map((a) => `<span class="vote veto">⛔ ${esc(a)}</span>`).join("")}${r.caution.map((a) => `<span class="vote caution">▼ ${esc(a)}</span>`).join("")}${(r.clear || []).map((a) => `<span class="vote" title="No objection">○ ${esc(a)}</span>`).join("")}</div></div>`).join("") || `<div class="empty">Nothing to compare yet.</div>`}</div></div>
+    </section>
+    <section class="frame" style="margin-bottom:18px"><header><h3>The roster</h3><span class="label">${t.agents.length} agents</span></header>
+      <div class="party">${t.agents.map((a) => `<article class="hero"><img alt="" src="${sprite(a.agent, spriteKind(a.kind))}">
+        <div style="min-width:0"><div class="who">${esc(a.agent)}</div><div class="cls">${esc(a.role)}</div><div class="cls">${a.desks.map(esc).join(", ")} · ${a.notes} note${a.notes === 1 ? "" : "s"}</div></div>
+        <div class="bubble ${a.last.stance === "info" || !a.last.text ? "quiet" : ""}">${esc(a.last.text || "Numbers only. No commentary.")}</div></article>`).join("")}</div></section>
+    <section class="frame"><header><h3>Desks</h3></header><div class="inv">${t.desks.map((d) => `<button class="item" style="text-align:left;cursor:pointer;color:inherit;font:inherit" ${d.kind === "crypto" ? `data-act="fomo"` : `data-open="${esc(d.name)}"`}>
+      <div class="tk" style="font-size:12px">${d.kind === "crypto" ? "FOMO" : "STOCK"}</div><div><div class="disp">${esc(d.name)}</div><div class="sub">${d.lead == null ? "" : `${d.lead >= 0 ? "Ahead of" : "Behind"} ${d.kind === "crypto" ? "holding SOL" : "the S&P 500"} by ${(Math.abs(d.lead) * 100).toFixed(1)} pts`}</div></div>
+      <div class="val"><div class="num">${money(d.nav)}</div><div class="sub ${cls(d.return_pct)}">${pct(d.return_pct)}</div></div></button>`).join("")}</div></section>`;
+}
+async function askBriefing() {
+  try { const out = await api("/api/team/briefing", {}); S.team.briefing_job = out.briefing_job; renderTeam(); }
+  catch (e) { return modal(`<h3>Can't brief yet</h3><div class="error">${esc(e.message)}</div><div class="foot"><button class="btn ghost" data-act="close">Close</button>${/key/i.test(e.message) ? `<button class="btn gold" data-act="settings">Add keys</button>` : ""}</div>`); }
+  const poll = setInterval(async () => {
+    if (!S.team) return clearInterval(poll);
+    try { S.team = await api("/api/team"); } catch { return; }
+    if (S.team.briefing_job.state !== "running") { clearInterval(poll); if (S.team.briefing_job.state === "done") SFX.unlock(); }
+    if (!$("#layer").innerHTML) renderTeam();
+  }, 2500);
+}
+
 /* ---------------------------------------------------------------- screens */
 function render() {
   $("#demo").innerHTML = S.demo ? `<div class="demo-banner">DEMO · sample data, not a real fund · run "aihf web" on your computer to play</div>` : "";
-  if (S.fomo) renderFomo(); else if (S.lab) renderLab(); else if (S.fund) renderFund(); else renderHome();
+  if (S.team) renderTeam(); else if (S.fomo) renderFomo(); else if (S.lab) renderLab(); else if (S.fund) renderFund(); else renderHome();
 }
 
 function topbar(right = "") {
@@ -951,7 +1042,7 @@ function renderHome() {
     <header style="display:flex;justify-content:space-between;align-items:center;margin:6px 0 14px;gap:12px;flex-wrap:wrap">
       <h2 style="font-size:22px">Select a save file</h2>
       <span style="display:flex;gap:12px;align-items:center"><span class="label">${funds.length} fund${funds.length === 1 ? "" : "s"}</span>
-      <button class="btn small" data-act="lab">Backtest lab</button></span></header>
+      <button class="btn small" data-act="lab">Backtest lab</button><button class="btn small gold" data-act="team">Team room</button></span></header>
     <div class="slots">${slots}
       <button class="frame slot new" data-act="new"><span class="plus">+</span><span class="disp" style="font-size:18px">New game</span>
       <span class="meta">Pick a team of AI analysts, choose stocks, start with pretend money.</span></button></div>`;
@@ -1343,14 +1434,16 @@ document.addEventListener("click", async (ev) => {
   if (!t) return;
   if (t.matches(".btn,.tab,[data-open]") && t.dataset.act !== "sound") SFX.click();
   if (t.dataset.scrim !== undefined && ev.target === t) return closeModal();
-  if (t.dataset.open) return openFund(t.dataset.open).catch((e) => toast(e.message));
+  if (t.dataset.open) { S.team = null; return openFund(t.dataset.open).catch((e) => toast(e.message)); }
   if (t.dataset.ticker) { S.ticker = t.dataset.ticker; return renderFund(); }
   if (t.dataset.years) { S.lab.form.mandate = $("#lab-plan").value; S.lab.form.universe = $("#lab-stocks").value; S.lab.form.years = Number(t.dataset.years); return renderLab(); }
   if (t.dataset.run) return openLab(t.dataset.run);
   switch (t.dataset.act) {
-    case "home": S.fund = null; S.lab = null; S.fomo = null; clearInterval(S.labPoll); clearInterval(S.fomoPoll); S.freshDay = null; await refreshApp().catch(() => {}); return render();
+    case "home": S.fund = null; S.lab = null; S.fomo = null; S.team = null; clearInterval(S.labPoll); clearInterval(S.fomoPoll); clearInterval(S.teamPoll); S.freshDay = null; await refreshApp().catch(() => {}); return render();
     case "lab": return openLab();
-    case "fomo": return openFomo();
+    case "fomo": S.team = null; return openFomo();
+    case "team": return openTeam();
+    case "briefing": return askBriefing();
     case "fomo-schedule": return fomoScheduleModal();
     case "fomo-reset": return fomoResetModal();
     case "fomo-run":
@@ -1402,7 +1495,7 @@ document.addEventListener("change", (ev) => {
 // Background refresh: alerts everywhere; the home screen also picks up auto-play progress.
 setInterval(async () => {
   await pollAlerts();
-  if (!S.demo && !S.fund && !S.lab && !S.fomo && !$("#layer").innerHTML) { try { await refreshApp(); renderHome(); } catch { /* offline: keep the screen */ } }
+  if (!S.demo && !S.fund && !S.lab && !S.fomo && !S.team && !$("#layer").innerHTML) { try { await refreshApp(); renderHome(); } catch { /* offline: keep the screen */ } }
 }, 20000);
 
 /* ------------------------------------------------------------------ demo */
@@ -1498,6 +1591,27 @@ function demoGame(days, unlocked) {
   const rank = [[17, "Legend"], [12, "Partner"], [8, "Portfolio Manager"], [5, "Trader"], [3, "Analyst"], [1, "Intern"]].find(([l]) => level >= l)[1];
   return { xp, level, rank, level_floor: 25 * level * (level - 1), level_next: 25 * (level + 1) * level, unlocked: n, badges };
 }
+function demoTeam() {
+  const n = (t, desk, agent, kind, subject, stance, text) => ({ t, desk, agent, kind, subject, stance, strength: 0.7, text });
+  const notes = [
+    n("2026-10-24T19:04:00Z", "FOMO desk", "Manager", "manager", "WIF", "bull", "Copied Fq3d…a1Lm: bought $60 of WIF (2+ top traders buying), +5.8% vs their price. Team size x1.50."),
+    n("2026-10-24T19:04:00Z", "FOMO desk", "Crowd Count", "council", "WIF", "bull", "3 top traders bought it in the last day."),
+    n("2026-10-24T19:04:00Z", "FOMO desk", "Too-Late Check", "council", "WIF", "caution", "6% above their price: smaller bet."),
+    n("2026-10-24T09:12:00Z", "FOMO desk", "Too-Late Check", "council", "PNUT", "veto", "Up 84% in the last hour: chasing, not following."),
+    n("2026-10-23", "demo-fund", "Warren Buffett", "stock", "MSFT", "bull", "Recurring revenue, wide margins and little debt."),
+    n("2026-10-23", "demo-fund", "Charlie Munger", "stock", "MSFT", "bull", "Hard-to-replace products."),
+    n("2026-10-23", "demo-fund", "Earnings Drift", "stock", "MSFT", "bull", "Small positive surprise last quarter."),
+    n("2026-10-23", "demo-fund", "Benjamin Graham", "stock", "NVDA", "bear", "Valuation demands years of perfect growth."),
+    n("2026-10-23", "demo-fund", "Earnings Drift", "stock", "NVDA", "bear", "Guidance disappointed.")];
+  const agreement = [{ subject: "WIF", desks: ["FOMO desk"], verdict: "Leaning buy", bull: ["Crowd Count"], bear: [], veto: [], caution: ["Too-Late Check"] },
+    { subject: "PNUT", desks: ["FOMO desk"], verdict: "Blocked", bull: [], bear: [], veto: ["Too-Late Check"], caution: [] },
+    { subject: "MSFT", desks: ["demo-fund"], verdict: "Team agrees: buy", bull: ["Warren Buffett", "Charlie Munger", "Earnings Drift"], bear: [], veto: [], caution: [] },
+    { subject: "NVDA", desks: ["demo-fund"], verdict: "Team agrees: avoid", bull: [], bear: ["Benjamin Graham", "Earnings Drift"], veto: [], caution: [] }];
+  const agents = [...new Set(notes.map((x) => x.agent))].map((a) => { const last = notes.find((x) => x.agent === a); return { agent: a, kind: last.kind, notes: notes.filter((x) => x.agent === a).length, last, desks: [last.desk], role: last.kind === "manager" ? "Manager" : last.kind === "stock" ? "Stock analyst" : "FOMO council" }; });
+  return { notes, agreement, agents, capital: 101000, value: 104952, return_pct: 0.039, model: { label: "DeepSeek V4.1 Flash" },
+    desks: [{ name: "demo-fund", kind: "stocks", nav: 103904, return_pct: 0.039, lead: 0.027 }, { name: "FOMO desk", kind: "crypto", nav: 1048, return_pct: 0.048, lead: 0.03 }],
+    briefing_job: { state: "idle" }, briefing: { t: "2026-10-24T21:00:00Z", model: "deepseek-flash", text: "## Where the team agrees\nThree stock analysts back MSFT and none oppose it. On FOMO, three top traders bought WIF.\n## Where it's split\nNVDA: Graham and Earnings Drift are against it.\n## Risks right now\nCopies of WIF cost about 6% more than the traders paid, which eats into any gain.\n## What I'd watch next\nWhether the lag cost stays under 5%. If it keeps rising, riding behind these traders isn't paying." } };
+}
 function demoFomo() {
   const hist = []; let nav = 1000, sol = 185; const t0 = Date.UTC(2026, 9, 20);
   for (let i = 0; i < 72; i++) { nav *= 1 + (Math.sin(i / 5) * 0.012 + 0.002); sol *= 1 + Math.cos(i / 7) * 0.006; hist.push({ t: new Date(t0 + i * 3600e3).toISOString(), nav: Math.round(nav * 100) / 100, sol }); }
@@ -1526,6 +1640,7 @@ async function demoApi(path, body) {
   if (path === "/api/alerts") return { alerts: DEMO_ALERTS, settings: { phone: false, kinds: Object.keys(KIND_LABELS) }, phone_ready: false };
   if (path === "/api/backtests") return { status: { state: "idle" }, runs: [] };
   if (path === "/api/fomo") return demoFomo();
+  if (path === "/api/team") return demoTeam();
   if (body !== undefined) throw new Error("Demo mode: this is a preview with sample data. Run \"aihf web\" on your computer to play for real.");
   if (path.endsWith("/plan")) throw new Error("Demo mode: playing a day needs the app running on your computer (aihf web).");
   const name = decodeURIComponent(path.split("/")[3]);

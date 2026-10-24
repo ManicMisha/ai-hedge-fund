@@ -68,6 +68,12 @@ class Store:
             db.execute("DELETE FROM flows WHERE since < ?", (cutoff,))
             db.execute("DELETE FROM windows WHERE since < ?", (cutoff,))
 
+    def window_totals(self) -> list[tuple[str, float]]:
+        """(window start, dollars of buying) for every saved window, oldest first."""
+        with closing(self._db()) as db:
+            return db.execute("""SELECT w.since, COALESCE(SUM(f.bought_usd), 0) FROM windows w
+                                 LEFT JOIN flows f ON f.since = w.since GROUP BY w.since ORDER BY w.since""").fetchall()
+
     def flows(self, since: str) -> list[tuple]:
         with closing(self._db()) as db:
             return db.execute("""SELECT since, owner, mint, symbol, bought_usd, sold_usd, bought, sold, trades
@@ -150,6 +156,19 @@ def leaderboard(store: Store, now: datetime | None = None, days: int = LOOKBACK_
         rows.append(w)
     rows.sort(key=lambda w: (not w["eligible"], -w["realized"]))
     return rows
+
+
+def heat(store: Store) -> float | None:
+    """The FOMO Meter: buying in the latest window against the median of the
+    windows before it. 1.0 is normal; 2.5+ is a euphoric crowd."""
+    totals = [t for _, t in store.window_totals()]
+    if len(totals) < 5 or not totals[-1]:
+        return None
+    before = sorted(t for t in totals[-57:-1] if t > 0)
+    if len(before) < 4:
+        return None
+    median = before[len(before) // 2]
+    return totals[-1] / median if median else None
 
 
 def coverage(store: Store, now: datetime | None = None) -> dict:

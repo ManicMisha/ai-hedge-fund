@@ -84,6 +84,12 @@ The home screen opens on **High Scores**: every fund ranked by how far it is ahe
 
 Honest limits: most memecoins go to zero, followers always buy after the leader, and seven days of leaderboard is a small sample. FOMO hasn't published its signing wallet; Bitquery identified it from on-chain activity, so if FOMO changes it the desk stops finding new traders until it's updated.
 
+**The team works together.** Every agent, on every desk, reports to one board, and a manager acts on what the whole team sees:
+
+- *The FOMO council.* Before the FOMO desk copies a trade, eight agents vote. Copy Scout (who bought, their rank), Pool Guard (enough liquidity, not minutes old), Too-Late Check (vetoes if the price is already 15% above what the trader paid or up 60% in an hour), Crowd Count (more top traders buying = bigger bet), Track Record (benches traders whose copies have lost money), Market Shield (SOL down 8% in a day, *or the stock desk's S&P 500 shield is up*), FOMO Meter (FOMO buying 2.5x normal = a euphoric crowd = half size) and Hype Watch (Grok checks X for a coordinated pump; asked last, only if nobody vetoed). Any veto stops the copy; otherwise the manager sizes it from all the votes, between a quarter and double the normal slot. Every vote is saved with the trade.
+- *Coordinated exits.* Take half off when a copy doubles; sell the rest if it falls 35% from its high (25% when the market is risk-off or the crowd euphoric); take half off if Hype Watch flags a held token; plus the stop-loss and time limit. Each outcome feeds the trader's track record, and losing traders drop off the follow list.
+- *The Team room.* One screen for all of it: every desk's paper money combined, a live feed of every agent's messages to the manager, an agreement map per stock or token (who's for, who's against, who vetoed), the roster, and the **manager's briefing**: one AI call that reads the whole board and explains, in plain English, where the team agrees, where it's split, the risks and what to watch. The briefing is advice only; trading rules stay in code.
+
 It serves this computer only (127.0.0.1) and needs no extra install. `--port 8080` to move it, `--no-browser` to skip opening a tab. Backtesting is still in the terminal app.
 
 ### Free data
