@@ -367,7 +367,8 @@ def test_fomo_desk_routes_settings_and_alert_feed(http, dash, monkeypatch, tmp_p
     from hedge_fund.fomo.test_fomo import BONK, FakeDex, FakeRPC, W
     rpc, dex = FakeRPC(), FakeDex()
     app = Dashboard(dash.paper_root, dash.mandates_root, data=fake_data, build_fund=build_fund, save_key=lambda *a: None,
-                    fomo_sources={"rpc": rpc, "dex": dex, "bitquery": lambda: type("Q", (), {"window": lambda self, s, t: []})()})
+                    fomo_sources={"rpc": rpc, "dex": dex, "scout": None, "reviewers": None,
+                                  "bitquery": lambda: type("Q", (), {"window": lambda self, s, t: []})()})
     status = app.fomo_status()
     assert status["settings"]["enabled"] is False and status["nav"] == 1000 and status["bitquery_set"] is False
     with pytest.raises(Exception):

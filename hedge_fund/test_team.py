@@ -121,7 +121,7 @@ def test_team_room_adds_up_every_desk_and_writes_a_briefing(tmp_path, clock, mon
         yield FakeDataClient(SERIES)
     llm = FakeLLM()
     app = Dashboard(tmp_path / "paper", tmp_path / "mandates", data=data, build_fund=build_fund, save_key=lambda *a: None,
-                    fomo_sources={"rpc": FakeRPC(), "dex": FakeDex(), "hype": lambda s, m: None,
+                    fomo_sources={"rpc": FakeRPC(), "dex": FakeDex(), "scout": None, "reviewers": None,
                                   "bitquery": lambda: NS(window=lambda s, t: [])},
                     llm_factory=lambda: llm)
     team = app.team()

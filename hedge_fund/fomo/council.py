@@ -11,8 +11,8 @@ agent looks at the trade from its own angle and votes:
   Market Shield   is the wider market risk-off (SOL falling, or the stock
                   side's S&P 500 shield up)?
   FOMO Meter      is the FOMO crowd euphoric right now?
-  Hype Watch      does X look like a coordinated pump? (asked last, and
-                  only if nobody vetoed, because it costs a few cents)
+  Social Scout    what X, the web, news and Reddit are saying (asked last,
+                  and only if nobody vetoed, because it costs a few cents)
 
 Any veto stops the copy. Otherwise the manager multiplies the agents' size
 adjustments together and keeps the result between a quarter and double the
@@ -136,22 +136,28 @@ def buy_council(s: Situation, hype: Callable[[], dict | None] | None = None) -> 
         votes.append(Vote("FOMO Meter", "info", "Crowd mood normal." if s.heat is not None else "Still learning what normal looks like."))
 
     if not any(v.verdict == "veto" for v in votes) and hype is not None:
-        verdict = None
+        report = None
         try:
-            verdict = hype()
+            report = hype()
         except Exception:
-            verdict = None
-        if verdict is None:
-            votes.append(Vote("Hype Watch", "info", "Couldn't check X this time."))
+            report = None
+        if report is None:
+            votes.append(Vote("Social Scout", "info", "Couldn't scroll socials this time (no xAI key, budget used, or search failed)."))
         else:
-            risk = float(verdict.get("pump_risk", 0))
-            note = str(verdict.get("summary") or "")[:160]
+            risk, mood = float(report.get("pump_risk", 0)), float(report.get("sentiment", 0))
+            reds = [f for f in report.get("red_flags") or [] if re.search(r"rug|honeypot|scam|dump|drain|exploit", f, re.I)]
             if risk >= HYPE_VETO:
-                votes.append(Vote("Hype Watch", "veto", f"Pump chatter on X ({risk:.0%}): {note}"))
+                votes.append(Vote("Social Scout", "veto", f"Looks like a coordinated pump ({risk:.0%} pump risk)."))
+            elif reds:
+                votes.append(Vote("Social Scout", "veto", "Red flag online: " + "; ".join(reds[:2]) + "."))
+            elif mood <= -0.4:
+                votes.append(Vote("Social Scout", "veto", f"The crowd is turning against it (mood {mood:+.1f})."))
             elif risk >= HYPE_CAUTION:
-                votes.append(Vote("Hype Watch", "caution", f"Some pump chatter ({risk:.0%}). Half size.", 0.5))
+                votes.append(Vote("Social Scout", "caution", f"Some pump chatter ({risk:.0%}). Half size.", 0.5))
+            elif mood >= 0.4 and report.get("green_flags"):
+                votes.append(Vote("Social Scout", "boost", "Real buzz and good signs: " + "; ".join(report["green_flags"][:2]) + ".", 1.1))
             else:
-                votes.append(Vote("Hype Watch", "go", f"Nothing suspicious on X ({risk:.0%})."))
+                votes.append(Vote("Social Scout", "go", f"Nothing worrying online (pump risk {risk:.0%})."))
 
     approved = not any(v.verdict == "veto" for v in votes)
     mult = 1.0
@@ -161,15 +167,23 @@ def buy_council(s: Situation, hype: Callable[[], dict | None] | None = None) -> 
 
 
 def exit_checks(pos: dict, price: float, *, tight: bool) -> tuple[float, str] | None:
-    """(share to sell, why) when the exit agents want out, else None."""
-    gain = price / pos["entry"] - 1 if pos["entry"] else 0.0
+    """The trailing stop: (share to sell, why) once a run gives back too much.
+    Profit-taking is the Exit Desk's call at its checkpoints."""
     peak_gain = pos["peak"] / pos["entry"] - 1 if pos["entry"] else 0.0
-    if gain >= TAKE_PROFIT_AT and not pos.get("took_profit"):
-        return 0.5, f"doubled: taking half off the table"
     trail = TRAIL_TIGHT if tight else TRAIL
     if peak_gain >= TRAIL_ARMED_AT and price <= pos["peak"] * (1 - trail):
         return 1.0, f"fell {trail:.0%} from its high after a {peak_gain:+.0%} run: locking in"
     return None
+
+
+CHECKPOINTS = (0.5, 1.0, 2.0, 4.0, 8.0)
+
+
+def next_checkpoint(pos: dict, gain: float) -> float | None:
+    """The profit level the Exit Desk should review now, if any."""
+    done = set(pos.get("checkpoints") or [])
+    due = [c for c in CHECKPOINTS if gain >= c and c not in done]
+    return max(due) if due else None
 
 
 def votes_json(votes: list[Vote]) -> list[dict]:

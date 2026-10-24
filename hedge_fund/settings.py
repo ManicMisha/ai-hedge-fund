@@ -24,6 +24,7 @@ FOMO_LIMITS = {
     "capital": (1_000.0, 10.0, 10_000_000.0),
     "stop_loss": (0.5, 0.1, 0.9),
     "max_positions": (20, 1, 50),
+    "ai_checks_per_day": (25, 0, 500),
 }
 
 DEFAULTS: dict = {

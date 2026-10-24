@@ -57,6 +57,21 @@ With no arguments, this launches the interactive terminal app. It has two modes:
 - **Paper trading** — your funds, each with a ledger of real market days and fake money. Highlight a fund to see what its next run will do; press enter to run it through the next completed session (an approval step shows the exact decision about to execute before anything trades), `s` for its full session history, `h`/`r` for the kill switch. Build a new fund from the same list: strategies, capital, cadence, tickers, and it is live. Every session is appended to a hash-chained ledger in `~/.hedge-fund/paper/<name>/`, so NAV is a track record, not a reset.
 - **Backtesting** — replay a fund over history and watch its equity curve draw against its benchmark. Results are saved to `~/.hedge-fund/research/`. Fund definitions live in `~/.hedge-fund/mandates/` and carry no tickers; you pick the universe per backtest.
 
+### The FOMO team (the main desk)
+
+`aihf web` opens straight onto the **FOMO desk**: a team of agents that follows the top traders on the FOMO app and paper-copies their trades. Every trade becomes a **case file**, and every agent's message is in it:
+
+1. **FOMO Link** is wired to the top traders' wallets (every 30 seconds with a private Solana address, every minute on the free public one) and reports each trade the moment it lands on the **Live wire**.
+2. **Front Desk** opens the case and routes it.
+3. **The council** votes: Copy Scout, Pool Guard, Too-Late Check, Crowd Count, Track Record, Market Shield (SOL only) and FOMO Meter. Any veto closes the case.
+4. **Social Scout** scrolls X and the web (news, Reddit, forums, public Instagram/TikTok/YouTube posts) through Grok's built-in X and web search, and reports mood, buzz, pump risk, red flags and good signs. A coordinated pump, a rug or scam warning, or a crowd turning negative is a veto. Instagram and Snapchat can't be searched directly by any program, so the Scout only sees what they publish to the open web. Needs an xAI key.
+5. **Second Opinion**, an independent AI on the model picked under Keys & model, reads the whole case file and must approve. It can only stop a trade, never enlarge one.
+6. **Front Desk double-checks** a fresh price: if it jumped 5% or the pool lost 30% while the team was checking, the buy is cancelled.
+7. **Manager** buys, sized by the votes.
+8. At **+50% and +100%** (and +200%, +400%), the **Exit Desk** reviews with a fresh Scout report and whether the traders we copied still hold: hold, take half, or withdraw. If every trader we copied has sold out, it withdraws. The trailing stop and stop-loss stay in code and can't be argued with.
+
+Paid AI checks are capped per day (25 by default, about $20 a month); past the cap, the free checks still run. Stock funds are still there under **Stock funds**, but FOMO is the main desk. Paper money only throughout.
+
 ### Web dashboard
 
 ```bash

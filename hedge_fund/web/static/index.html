@@ -344,6 +344,29 @@ a.wallet { color: var(--mana); font-family: var(--display); text-decoration: non
 a.wallet:hover { text-decoration: underline; }
 @media (max-width: 760px) { .fomo-card { grid-template-columns: 1fr; } }
 
+/* FOMO team strip, live wire, case files */
+.teamstrip { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; margin-bottom: 18px; padding: 12px; }
+.teamstrip .agent { display: flex; gap: 10px; align-items: center; }
+.teamstrip img { width: 34px; height: 34px; image-rendering: pixelated; background: #0c0918; border: 2px solid var(--edge); }
+.teamstrip .nm { font-family: var(--display); font-size: 14px; }
+.teamstrip .v { font-size: 12px; color: var(--muted); }
+.teamstrip .agent.on .nm::after { content: " ●"; color: var(--hp); animation: blink 1.4s steps(2) infinite; }
+.teamstrip .agent.off .nm::after { content: " ○"; color: var(--faint); }
+.wire { display: grid; gap: 0; max-height: 420px; overflow: auto; }
+.wire-row { display: grid; grid-template-columns: 64px 48px 1fr auto; gap: 10px; align-items: center; padding: 8px 4px; background: none; border: 0;
+  border-bottom: 2px dashed #2b2450; color: inherit; font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.wire-row:hover:not(:disabled) { background: var(--panel-2); }
+.wire-row:disabled { cursor: default; }
+.wire-row .when { color: var(--faint); font-variant-numeric: tabular-nums; }
+.wire-row .what { min-width: 0; overflow-wrap: anywhere; }
+.cases { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.case { text-align: left; background: #140f27; border: 2px solid var(--edge); padding: 10px; color: inherit; font: inherit; cursor: pointer; display: grid; gap: 4px; min-width: 0; }
+.case:hover { background: var(--panel-2); }
+.case .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.case .sub { font-size: 11px; color: var(--muted); }
+.case .last { font-size: 12px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+@media (max-width: 560px) { .wire-row { grid-template-columns: 52px 1fr auto; } .wire-row .tag { display: none; } }
+
 /* Team room */
 .brief h4 { font-family: var(--display); font-size: 16px; color: var(--gold); margin: 14px 0 4px; }
 .brief h4:first-child { margin-top: 0; }
@@ -721,7 +744,7 @@ function renderLab() {
   const calls = ai * tickers * perYear * form.years;
   const show = running || st.state === "failed" || st.state === "cancelled" ? st : L.run;
   const runs = L.data?.runs || [];
-  $("#app").innerHTML = `${topbar(`<button class="btn small" data-act="home">◀ Saves</button>`)}
+  $("#app").innerHTML = `${topbar(`<button class="btn small" data-act="stocks">◀ Stock funds</button>`)}
     <div class="hud"><h2>Backtest lab</h2><span class="muted" style="font-size:12px">Replay a plan over past years and race it against the S&amp;P 500.</span></div>
     <section class="lab">
       <div class="frame"><header><h3>Set up a run</h3></header>
@@ -804,13 +827,13 @@ function pollLab() {
 /* --------------------------------------------------------------- FOMO desk */
 async function openFomo() {
   try { S.fomo = await api("/api/fomo"); } catch (e) { return toast(e.message); }
-  S.fund = null; S.lab = null; render(); window.scrollTo({ top: 0 });
+  S.fund = null; S.lab = null; S.team = null; S.stocks = false; render(); window.scrollTo({ top: 0 });
   clearInterval(S.fomoPoll);
   S.fomoPoll = setInterval(async () => {
     if (!S.fomo) return clearInterval(S.fomoPoll);
     try { S.fomo = await api("/api/fomo"); } catch { return; }
-    if (!$("#layer").innerHTML && !document.activeElement?.closest?.("#fomo-form")) renderFomo();
-  }, 15000);
+    if (!S.team && !S.lab && !S.fund && !S.stocks && !$("#layer").innerHTML && !document.activeElement?.closest?.("#fomo-form")) renderFomo();
+  }, 10000);
 }
 function fomoCard() {
   const f = S.app?.fomo_card; if (!f) return "";
@@ -832,10 +855,16 @@ function renderFomo() {
   const errs = Object.entries(f.errors || {}).map(([k, e]) => `<div class="error" style="margin:0 0 12px">${esc({ bitquery: "Finding traders", solana: "Watching wallets", prices: "Prices" }[k] || k)}: ${esc(e.message)}</div>`).join("");
   const series = (f.history || []).filter((h) => h.sol).map((h) => ({ session: h.t, nav: h.nav, benchmark_close: h.sol, traded: false }));
   const board = f.leaderboard || [];
-  $("#app").innerHTML = `${topbar(`<button class="btn small" data-act="home">◀ Saves</button>`)}${setup}
+  $("#app").innerHTML = `${topbar(`<button class="btn small gold" data-act="team">Team room</button><button class="btn small" data-act="stocks">Stock funds</button>`)}${setup}
     <div class="hud"><h2>FOMO desk</h2><span class="pill ${cfg.enabled ? "up" : "faint"}">${cfg.enabled ? "Running" : "Off"}</span>
       <span class="muted" style="font-size:12px">Paper money only · rides behind FOMO's top traders · started ${day(f.started)}</span></div>
     ${errs}
+    <section class="frame teamstrip">${[
+      ["FOMO Link", f.followed ? `wired to ${f.followed} top traders` : "waiting for the first leaderboard", f.followed ? "on" : "off"],
+      ["Social Scout", f.scout_ready ? "scrolling X + the web" : "needs an xAI key", f.scout_ready ? "on" : "off"],
+      ["Second Opinion + Exit Desk", f.reviewer_ready ? `on ${esc(S.app?.model?.label || "your AI model")}` : "off", f.reviewer_ready && S.app?.model?.key_set ? "on" : "off"],
+      ["AI checks today", `${f.ai_calls?.count || 0} of ${cfg.ai_checks_per_day}`, (f.ai_calls?.count || 0) < cfg.ai_checks_per_day ? "on" : "off"],
+    ].map(([n, v, st]) => `<div class="agent ${st}"><img alt="" src="${sprite(n, "tracker")}"><div><div class="nm">${esc(n)}</div><div class="v">${v}</div></div></div>`).join("")}</section>
     ${(f.risk_off || []).length || f.heat >= 2.5 ? `<div class="trim" style="margin:-6px 0 14px">${(f.risk_off || []).map((r) => `Market Shield: ${esc(r)}. Copies are half size.`).join(" ")} ${f.heat >= 2.5 ? `FOMO Meter: buying is ${f.heat.toFixed(1)}x normal, the crowd is euphoric. Copies are half size and stops are tighter.` : ""}</div>` : ""}
     <section class="stats">
       <div class="frame stat"><div class="label">Copy fund</div><div class="value num">${money(f.nav, f.nav < 1000)}</div>
@@ -848,13 +877,29 @@ function renderFomo() {
         <div class="note">How much more the desk paid than the trader, on average. The price of riding behind.</div></div>
     </section>
     <section class="grid2">
-      <div class="frame"><header><h3>The race</h3><div class="legend"><span><i style="background:var(--gold)"></i>Copy fund</span><span><i style="background:var(--mana)"></i>Holding SOL</span></div></header>
-        ${series.length >= 2 ? `<div class="chart-box"><canvas id="fomo-chart" role="img" aria-label="Copy fund against holding SOL"></canvas></div>` : `<div class="empty">The race draws itself once the desk has run for a little while.</div>`}</div>
+      <div class="frame"><header><h3>Live wire</h3><span class="label">every top-trader trade, as it lands</span></header>
+        <div class="wire">${(f.wire || []).map((w) => `<button class="wire-row" ${w.case ? `data-case="${esc(w.case)}"` : "disabled"}>
+          <span class="when">${esc(new Date(w.t).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }))}</span>
+          <span class="tag ${w.side === "buy" ? "buy" : "sell"}">${w.side === "buy" ? "Buy" : "Sell"}</span>
+          <span class="what"><b>${esc(w.wallet)}</b> ${w.side === "buy" ? "bought" : "sold"} ${w.usd ? money(w.usd) + " of " : ""}<b>${esc(w.symbol)}</b>${w.delay != null ? ` <span class="faint">${w.delay}s ago</span>` : ""}</span>
+          <span class="pill ${{ copied: "up", "we sell too": "up", blocked: "down", rejected: "down", cancelled: "warn", skipped: "faint" }[w.outcome] || "faint"}">${esc(w.outcome)}</span></button>`).join("") || `<div class="empty">Nothing yet. The moment a followed trader trades, it lands here and the team gets to work.</div>`}</div></div>
       <div class="frame"><header><h3>Open copies</h3><span class="label">${f.positions.length} held</span></header>
         <div class="inv">${f.positions.map((p) => `<div class="item"><div class="tk" style="font-size:13px;overflow:hidden">${esc(p.symbol)}</div>
           <div style="min-width:0"><div class="sub">from ${p.from.map(esc).join(", ")}${p.lag != null ? ` · ${pct(p.lag)} lag` : ""}</div><div class="sub">${day(p.opened)}</div></div>
           <div class="val"><div class="num">${money(p.value, true)}</div><div class="sub ${cls(p.pnl_pct)}">${pct(p.pnl_pct)}</div></div></div>`).join("") || `<div class="empty" style="padding:12px">No copies open.</div>`}
           <div class="item"><div class="tk cash">$</div><div><div>Cash</div><div class="sub">Waiting for the next trade</div></div><div class="val num">${money(f.cash, true)}</div></div></div></div>
+    </section>
+    <section class="frame" style="margin-bottom:18px"><header><h3>Case files</h3><span class="label">every trade the team worked on · tap to read the thread</span></header>
+      <div class="cases">${(f.cases || []).slice(0, 24).map((c) => { const last = c.messages[c.messages.length - 1] || {};
+        return `<button class="case" data-case="${esc(c.id)}"><div class="top"><span class="disp">${esc(c.symbol)}</span><span class="pill ${{ holding: "up", closed: "flat", blocked: "down", rejected: "down", cancelled: "warn", skipped: "faint", checking: "warn" }[c.status] || "faint"}">${esc(c.status)}</span></div>
+          <div class="sub">${esc(c.id)} · from ${esc(c.wallet)} · ${c.messages.length} messages${c.result ? ` · <span class="${cls(c.result.profit)}">${c.result.profit >= 0 ? "+" : "-"}${money(Math.abs(c.result.profit))}</span>` : ""}</div>
+          <div class="last"><b>${esc(last.agent || "")}:</b> ${esc(last.text || "")}</div></button>`; }).join("") || `<div class="empty">No cases yet.</div>`}</div></section>
+    <section class="grid2">
+      <div class="frame"><header><h3>The race</h3><div class="legend"><span><i style="background:var(--gold)"></i>Copy fund</span><span><i style="background:var(--mana)"></i>Holding SOL</span></div></header>
+        ${series.length >= 2 ? `<div class="chart-box"><canvas id="fomo-chart" role="img" aria-label="Copy fund against holding SOL"></canvas></div>` : `<div class="empty">The race draws itself once the desk has run for a little while.</div>`}</div>
+      <div class="frame"><header><h3>Trade feed</h3><span class="label">newest first</span></header>
+        <div class="log">${(f.events || []).map((e) => `<div class="entry"><span class="when">${esc(new Date(e.t).toLocaleString([], { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }))}</span>
+          <span class="tag ${{ buy: "buy", sell: "sell", skip: "redo", follow: "plan" }[e.kind] || "redo"}">${esc({ buy: "Copy", sell: "Sell", skip: "Skip", follow: "Follow" }[e.kind] || e.kind)}</span><span class="what">${esc(e.text)}${voteChips(e.votes)}</span></div>`).join("") || `<div class="empty">Nothing yet. Copies appear here the moment a followed trader buys.</div>`}</div></div>
     </section>
     <section class="frame board"><header><h2 class="title">FOMO TOP TRADERS</h2><span class="label">last 7 days · realized profit</span></header>
       ${board.length ? `<div style="overflow-x:auto"><table><thead><tr><th>#</th><th>Trader</th><th class="r">Profit (sold)</th><th class="r">Win rate</th><th class="r hide-sm">Closed</th><th class="r hide-sm">Trades</th><th class="hide-sm">Best token</th></tr></thead><tbody>
@@ -865,10 +910,7 @@ function renderFomo() {
           <td class="hide-sm">${w.best ? `${esc(w.best.symbol)} <span class="up">+${money(w.best.profit)}</span>` : "–"}</td></tr>`).join("")}</tbody></table></div>`
         : `<div class="empty">${f.bitquery_set ? "Collecting FOMO's trades. The first ranking appears within 3 hours." : "Add a Bitquery token to start collecting."}</div>`}
       <p class="foot-note">Rebuilt from ${cov.hours} hours of public FOMO trades${cov.full ? "" : ` (rankings firm up after 7 days)`}. Followed traders need 5+ closed positions and half of them winners, so one lucky memecoin doesn't count. Profit is from what they sold, at their average cost.</p></section>
-    <section class="grid2">
-      <div class="frame"><header><h3>Trade feed</h3><span class="label">newest first</span></header>
-        <div class="log">${(f.events || []).map((e) => `<div class="entry"><span class="when">${esc(new Date(e.t).toLocaleString([], { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }))}</span>
-          <span class="tag ${{ buy: "buy", sell: "sell", skip: "redo", follow: "plan" }[e.kind] || "redo"}">${esc({ buy: "Copy", sell: "Sell", skip: "Skip", follow: "Follow" }[e.kind] || e.kind)}</span><span class="what">${esc(e.text)}${voteChips(e.votes)}</span></div>`).join("") || `<div class="empty">Nothing yet. Copies appear here the moment a followed trader buys.</div>`}</div></div>
+    <section>
       <div class="frame"><header><h3>Desk settings</h3></header>
         <form id="fomo-form">
           <label class="switch" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="fm-on" ${cfg.enabled ? "checked" : ""}> Run the desk (every minute while this window is open)</label>
@@ -879,6 +921,8 @@ function renderFomo() {
           <div class="field"><label class="label" for="fm-slot">Money per copy (% of fund)</label><input id="fm-slot" inputmode="decimal" value="${+(cfg.slot_pct * 100).toFixed(1)}"></div>
           <div class="field"><label class="label" for="fm-liq">Skip pools smaller than ($)</label><input id="fm-liq" inputmode="numeric" value="${cfg.min_liquidity}"></div>
           <div class="field"><label class="label" for="fm-stop">Stop-loss (%)</label><input id="fm-stop" inputmode="numeric" value="${Math.round(cfg.stop_loss * 100)}"></div>
+          <div class="field"><label class="label" for="fm-ai">Paid AI checks per day</label><input id="fm-ai" inputmode="numeric" value="${cfg.ai_checks_per_day}">
+            <span class="hint">Each trade the council lets through gets a Social Scout search (Grok, a few cents) and a Second Opinion (your model, about a cent). 25 a day keeps it near $20 a month. After the limit, the free checks still run.</span></div>
           ${S.fomoError ? `<div class="error">${esc(S.fomoError)}</div>` : ""}
           <div class="foot"><button type="button" class="btn ghost" data-act="fomo-schedule">Window closed?</button><button type="button" class="btn" data-act="fomo-run" ${f.busy ? "disabled" : ""}>${f.busy ? "Checking…" : "Check now"}</button><button class="btn gold" type="submit">Save</button></div>
         </form>
@@ -893,10 +937,21 @@ async function saveFomo() {
     if (bq) await api("/api/keys", { env_var: "BITQUERY_TOKEN", value: bq });
     if (rpc) await api("/api/keys", { env_var: "SOLANA_RPC_URL", value: rpc });
     S.fomo = await api("/api/fomo/settings", { enabled: $("#fm-on").checked, follow: num("#fm-follow"), slot_pct: num("#fm-slot") / 100,
-      min_liquidity: num("#fm-liq"), stop_loss: num("#fm-stop") / 100 });
+      min_liquidity: num("#fm-liq"), stop_loss: num("#fm-stop") / 100, ai_checks_per_day: num("#fm-ai") });
     S.fomoError = null; toast("Saved");
   } catch (e) { S.fomoError = e.message; }
   renderFomo();
+}
+function caseModal(id) {
+  const c = (S.fomo?.cases || []).find((x) => x.id === id);
+  if (!c) return toast("That case has scrolled out of the recent list.");
+  const tone = { go: "bull", boost: "bull", veto: "veto", caution: "caution", info: "info" };
+  modal(`<h3>${esc(c.symbol)} <span class="muted" style="font-size:14px">${esc(c.id)} · ${esc(c.status)}</span></h3>
+    <p class="muted" style="margin:0 0 8px;font-size:12px">Opened ${esc(new Date(c.opened).toLocaleString())} · trade by ${esc(c.wallet)}</p>
+    <div class="comms" style="max-height:62vh">${c.messages.map((m) => `<div class="msg ${tone[m.verdict] || "info"}"><img alt="" src="${sprite(m.agent, m.agent === "Manager" ? "ai" : "tracker")}">
+      <div style="min-width:0"><div class="who">${esc(m.agent)} <span class="faint">→ ${esc(m.to || "Front Desk")} · ${esc(new Date(m.t).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" }))}</span></div>
+      <div class="say">${esc(m.text)}</div></div></div>`).join("")}</div>
+    <div class="foot"><button class="btn gold" data-act="close">Close</button></div>`);
 }
 function fomoScheduleModal() {
   modal(`<h3>Keep the desk running</h3><p class="muted">The desk only watches while this window is open. To keep copying with it closed, paste this into PowerShell once:</p>
@@ -941,7 +996,7 @@ function renderTeam() {
   const t = S.team, job = t.briefing_job || { state: "idle" }, b = t.briefing;
   const agreed = t.agreement.filter((r) => r.verdict === "Team agrees: buy").length;
   const blocked = t.agreement.filter((r) => r.verdict === "Blocked").length;
-  $("#app").innerHTML = `${topbar(`<button class="btn small" data-act="home">◀ Saves</button>`)}
+  $("#app").innerHTML = `${topbar(`<button class="btn small" data-act="home">◀ FOMO desk</button>`)}
     <div class="hud"><h2>Team room</h2><span class="muted" style="font-size:12px">Every agent on every desk, one board. The manager reads it all.</span></div>
     <section class="stats">
       <div class="frame stat"><div class="label">All desks · paper money</div><div class="value num">${money(t.value)}</div>
@@ -989,7 +1044,8 @@ async function askBriefing() {
 /* ---------------------------------------------------------------- screens */
 function render() {
   $("#demo").innerHTML = S.demo ? `<div class="demo-banner">DEMO · sample data, not a real fund · run "aihf web" on your computer to play</div>` : "";
-  if (S.team) renderTeam(); else if (S.fomo) renderFomo(); else if (S.lab) renderLab(); else if (S.fund) renderFund(); else renderHome();
+  if (S.team) renderTeam(); else if (S.lab) renderLab(); else if (S.fund) renderFund(); else if (S.stocks) renderHome();
+  else if (S.fomo) renderFomo(); else { $("#app").innerHTML = `${topbar()}<div class="empty">Opening the FOMO desk…</div>`; openFomo(); }
 }
 
 function topbar(right = "") {
@@ -1038,9 +1094,9 @@ function renderHome() {
       <div class="meta">${lead == null ? "Not played yet" : `${lead >= 0 ? "Ahead of" : "Behind"} ${esc(f.benchmark)} by ${(Math.abs(lead) * 100).toFixed(1)} pts`}${f.last_session ? ` · last day ${day(f.last_session)}` : ""}</div>
     </button>`;
   }).join("");
-  $("#app").innerHTML = `${topbar()}${coinBanner()}${highScores()}${autoplayPanel()}${fomoCard()}
+  $("#app").innerHTML = `${topbar(`<button class="btn small" data-act="home">◀ FOMO desk</button>`)}${coinBanner()}${highScores()}${autoplayPanel()}
     <header style="display:flex;justify-content:space-between;align-items:center;margin:6px 0 14px;gap:12px;flex-wrap:wrap">
-      <h2 style="font-size:22px">Select a save file</h2>
+      <h2 style="font-size:22px">Stock funds <span class="muted" style="font-size:13px">(the back room: FOMO is the main desk)</span></h2>
       <span style="display:flex;gap:12px;align-items:center"><span class="label">${funds.length} fund${funds.length === 1 ? "" : "s"}</span>
       <button class="btn small" data-act="lab">Backtest lab</button><button class="btn small gold" data-act="team">Team room</button></span></header>
     <div class="slots">${slots}
@@ -1097,7 +1153,7 @@ function renderFund() {
   const g = f.game || { level: 1, rank: "Intern", xp: 0, level_floor: 0, level_next: 50, unlocked: 0, badges: [] };
   if (!S.ticker || !universe.includes(S.ticker)) S.ticker = universe[0];
 
-  $("#app").innerHTML = `${topbar(`<button class="btn small" data-act="home">◀ Saves</button>`)}${coinBanner()}
+  $("#app").innerHTML = `${topbar(`<button class="btn small" data-act="stocks">◀ Stock funds</button>`)}${coinBanner()}
     <div class="hud"><h2>${esc(f.name)}</h2><span class="lv" title="Level from XP">LV ${g.level}</span>${status}
       <span class="muted" style="font-size:12px">${esc(spec.name)} · ${esc(universe.join(" "))} · trades ${esc(spec.rebalance)} · max ${(spec.max_position_pct * 100).toFixed(0)}% per stock</span></div>
     <div class="xp"><span class="rank">${esc(g.rank)}</span>${xpBar(g)}<span class="num">${g.xp - g.level_floor} / ${g.level_next - g.level_floor} XP to LV ${g.level + 1}</span>
@@ -1430,7 +1486,7 @@ async function openFund(name) {
 
 document.addEventListener("click", async (ev) => {
   SFX.wake();
-  const t = ev.target.closest("[data-act],[data-open],[data-ticker],[data-scrim],[data-years],[data-run]");
+  const t = ev.target.closest("[data-act],[data-open],[data-ticker],[data-scrim],[data-years],[data-run],[data-case]");
   if (!t) return;
   if (t.matches(".btn,.tab,[data-open]") && t.dataset.act !== "sound") SFX.click();
   if (t.dataset.scrim !== undefined && ev.target === t) return closeModal();
@@ -1438,8 +1494,11 @@ document.addEventListener("click", async (ev) => {
   if (t.dataset.ticker) { S.ticker = t.dataset.ticker; return renderFund(); }
   if (t.dataset.years) { S.lab.form.mandate = $("#lab-plan").value; S.lab.form.universe = $("#lab-stocks").value; S.lab.form.years = Number(t.dataset.years); return renderLab(); }
   if (t.dataset.run) return openLab(t.dataset.run);
+  if (t.dataset.case && !t.dataset.act) return caseModal(t.dataset.case);
   switch (t.dataset.act) {
-    case "home": S.fund = null; S.lab = null; S.fomo = null; S.team = null; clearInterval(S.labPoll); clearInterval(S.fomoPoll); clearInterval(S.teamPoll); S.freshDay = null; await refreshApp().catch(() => {}); return render();
+    case "home": S.fund = null; S.lab = null; S.team = null; S.stocks = false; clearInterval(S.labPoll); clearInterval(S.teamPoll); S.freshDay = null; return openFomo();
+    case "stocks": S.fund = null; S.lab = null; S.team = null; S.stocks = true; clearInterval(S.labPoll); clearInterval(S.teamPoll); S.freshDay = null; await refreshApp().catch(() => {}); return render();
+    case "case": return caseModal(t.dataset.case); S.freshDay = null; await refreshApp().catch(() => {}); return render();
     case "lab": return openLab();
     case "fomo": S.team = null; return openFomo();
     case "team": return openTeam();
@@ -1450,7 +1509,7 @@ document.addEventListener("click", async (ev) => {
       try { S.fomo = await api("/api/fomo/run", {}); S.fomo.busy = true; renderFomo(); toast("Checking FOMO now"); setTimeout(async () => { try { S.fomo = await api("/api/fomo"); if (S.fomo) renderFomo(); } catch { /* fine */ } }, 4000); } catch (e) { toast(e.message); }
       return;
     case "lab-cancel": try { await api("/api/backtests/cancel", {}); } catch (e) { toast(e.message); } return;
-    case "lab-paper": { const plan = t.dataset.plan, stocks = t.dataset.stocks; S.lab = null; S.fund = null; render(); return newGameModal("", { mandate: plan, universe: stocks }); }
+    case "lab-paper": { const plan = t.dataset.plan, stocks = t.dataset.stocks; S.lab = null; S.fund = null; S.stocks = true; render(); return newGameModal("", { mandate: plan, universe: stocks }); }
     case "alerts": await pollAlerts(); return alertsModal();
     case "test-alert": return saveAlertSettings(true);
     case "desk-notify": try { await Notification.requestPermission(); } catch { /* fine */ } return alertsModal();
@@ -1495,7 +1554,7 @@ document.addEventListener("change", (ev) => {
 // Background refresh: alerts everywhere; the home screen also picks up auto-play progress.
 setInterval(async () => {
   await pollAlerts();
-  if (!S.demo && !S.fund && !S.lab && !S.fomo && !S.team && !$("#layer").innerHTML) { try { await refreshApp(); renderHome(); } catch { /* offline: keep the screen */ } }
+  if (!S.demo && S.stocks && !S.fund && !S.lab && !S.team && !$("#layer").innerHTML) { try { await refreshApp(); renderHome(); } catch { /* offline: keep the screen */ } }
 }, 20000);
 
 /* ------------------------------------------------------------------ demo */
@@ -1627,7 +1686,24 @@ function demoFomo() {
       { wallet: w("B"), short: "Fq3d…a1Lm", realized: 9350, win_rate: 0.62, closed: 21, trades: 140, eligible: true, following: true, best: { symbol: "WIF", profit: 2900 } },
       { wallet: w("C"), short: "3mPz…kk2B", realized: 31000, win_rate: 1, closed: 1, trades: 3, eligible: false, following: false, best: { symbol: "LUCKY", profit: 31000 } }],
     followed: 2, coverage: { windows: 24, hours: 72, full: false }, last_poll: null, last_collect: null, errors: {},
-    config: {}, settings: { enabled: true, follow: 10, slot_pct: 0.04, min_liquidity: 30000, capital: 1000, stop_loss: 0.5, max_positions: 20 }, bitquery_set: true, rpc_custom: false };
+    config: {}, settings: { enabled: true, follow: 10, slot_pct: 0.04, min_liquidity: 30000, capital: 1000, stop_loss: 0.5, max_positions: 20, ai_checks_per_day: 25 }, bitquery_set: true, rpc_custom: false,
+    scout_ready: true, reviewer_ready: true, ai_calls: { date: "2026-10-24", count: 9 },
+    wire: [{ t: "2026-10-24T19:04:00Z", wallet: "Fq3d…a1Lm", side: "buy", symbol: "WIF", usd: 2400, delay: 41, case: "C14", outcome: "copied" },
+      { t: "2026-10-24T18:51:00Z", wallet: "7xKX…9fQa", side: "sell", symbol: "POPCAT", usd: 5100, delay: null, case: "C11", outcome: "we sell too" },
+      { t: "2026-10-24T18:20:00Z", wallet: "9pLm…Zz01", side: "buy", symbol: "PNUT", usd: 900, delay: 22, case: "C13", outcome: "blocked" }],
+    cases: [{ id: "C14", symbol: "WIF", wallet: "Fq3d…a1Lm", status: "holding", opened: "2026-10-24T19:04:00Z", messages: [
+      { t: "2026-10-24T19:04:00Z", agent: "FOMO Link", to: "Front Desk", verdict: "info", text: "Fq3d…a1Lm just bought $2,400 of WIF (41s ago)." },
+      { t: "2026-10-24T19:04:01Z", agent: "Front Desk", to: "Team", verdict: "info", text: "Case C14 opened. Council: check it." },
+      { t: "2026-10-24T19:04:02Z", agent: "Too-Late Check", to: "Front Desk", verdict: "caution", text: "6% above their price: smaller bet." },
+      { t: "2026-10-24T19:04:02Z", agent: "Crowd Count", to: "Front Desk", verdict: "boost", text: "3 top traders bought it in the last day." },
+      { t: "2026-10-24T19:04:20Z", agent: "Social Scout", to: "Front Desk", verdict: "go", text: "Checked X, news, Reddit. Mood positive, buzz 60%, pump risk 15%. Good signs: active community; new exchange listing." },
+      { t: "2026-10-24T19:04:31Z", agent: "Second Opinion", to: "Front Desk", verdict: "go", text: "Approve (70% sure): three top traders agree and the pool is deep; the lag is acceptable." },
+      { t: "2026-10-24T19:04:32Z", agent: "Front Desk", to: "Manager", verdict: "go", text: "Double-checked: price +0.8% since the council looked, pool steady. Over to the Manager." },
+      { t: "2026-10-24T19:04:32Z", agent: "Manager", to: "Team", verdict: "go", text: "Bought $60 of WIF (team size x1.50). Exit Desk reviews at +50% and +100%." }] },
+      { id: "C13", symbol: "PNUT", wallet: "9pLm…Zz01", status: "blocked", opened: "2026-10-24T18:20:00Z", messages: [
+      { t: "2026-10-24T18:20:00Z", agent: "FOMO Link", to: "Front Desk", verdict: "info", text: "9pLm…Zz01 just bought $900 of PNUT (22s ago)." },
+      { t: "2026-10-24T18:20:01Z", agent: "Too-Late Check", to: "Front Desk", verdict: "veto", text: "Up 84% in the last hour: chasing, not following." },
+      { t: "2026-10-24T18:20:01Z", agent: "Front Desk", to: "Team", verdict: "veto", text: "Blocked by Too-Late Check. Case closed." }] }] };
 }
 const DEMO_ALERTS = [
   { id: "d1", fund: "copy-desk-trial", session: "2026-10-12", kind: "insider", label: "Insider buying", level: "good", ticker: "KO", title: "KO: a cluster of insiders buying", body: "3 insiders bought $1,240,000 on the open market in 90 days. A cluster buy, the strongest kind." },
@@ -1655,8 +1731,7 @@ async function demoApi(path, body) {
   try { if (!local) throw new Error("preview"); await refreshApp(); }
   catch { S.demo = true; await refreshApp(); }
   await pollAlerts();
-  render();
-  if (S.demo && !S.fund) await openFund("demo-fund");
+  await openFomo();
 })();
 </script>
 </body>

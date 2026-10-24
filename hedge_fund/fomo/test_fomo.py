@@ -171,8 +171,7 @@ class Clock:
 @pytest.fixture
 def desk(tmp_path):
     rpc, dex, clock = FakeRPC(), FakeDex(), Clock()
-    d = Desk(tmp_path, {"capital": 1000.0}, rpc=rpc, dex=dex, bitquery=lambda: NS(window=lambda s, t: []), clock=clock,
-             hype=lambda symbol, mint: None)
+    d = Desk(tmp_path, {"capital": 1000.0}, rpc=rpc, dex=dex, bitquery=lambda: NS(window=lambda s, t: []), clock=clock)
     d.state["followed"] = [W, W2]
     d.poll()  # first look: cursors set, nothing copied
     d.rpc_, d.dex_, d.clock_ = rpc, dex, clock
@@ -296,25 +295,32 @@ def test_council_sizes_from_every_agent():
     assert mult == 0.75
 
 
-def test_hype_watch_is_asked_last_and_only_when_needed():
+def test_social_scout_is_asked_last_and_only_when_needed():
     asked = []
-    hype = lambda: asked.append(1) or {"pump_risk": 0.8, "summary": "bots everywhere"}
-    approved, _, votes = buy_council(_sit(), hype=hype)
-    assert not approved and votes[-1].agent == "Hype Watch" and asked == [1]
-    buy_council(_sit(liquidity=10), hype=hype)
+    scout = lambda: asked.append(1) or {"pump_risk": 0.8, "sentiment": 0.5, "red_flags": [], "green_flags": []}
+    approved, _, votes = buy_council(_sit(), hype=scout)
+    assert not approved and votes[-1].agent == "Social Scout" and asked == [1]
+    buy_council(_sit(liquidity=10), hype=scout)
     assert asked == [1]  # someone already vetoed: don't pay for a search
-    approved, mult, _ = buy_council(_sit(), hype=lambda: {"pump_risk": 0.5})
+    approved, mult, _ = buy_council(_sit(), hype=lambda: {"pump_risk": 0.5, "sentiment": 0.0})
     assert approved and mult == 0.5
+    rug = {"pump_risk": 0.1, "sentiment": 0.3, "red_flags": ["devs dumped, possible rug"], "green_flags": []}
+    assert not buy_council(_sit(), hype=lambda: rug)[0]
+    assert not buy_council(_sit(), hype=lambda: {"pump_risk": 0.1, "sentiment": -0.6})[0]
+    ok, mult, _ = buy_council(_sit(), hype=lambda: {"pump_risk": 0.1, "sentiment": 0.6, "green_flags": ["CEX listing"]})
+    assert ok and mult == 1.1
 
 
-def test_exits_take_half_at_double_and_trail_from_the_high():
-    pos = {"entry": 1.0, "peak": 2.1, "took_profit": False}
-    assert exit_checks(pos, 2.05, tight=False)[0] == 0.5
-    pos["took_profit"] = True
+def test_trailing_stop_and_checkpoints():
+    from hedge_fund.fomo.council import next_checkpoint
+    pos = {"entry": 1.0, "peak": 2.1}
     assert exit_checks(pos, 1.5, tight=False) is None           # 29% off the high: hold
     assert exit_checks(pos, 1.3, tight=False)[0] == 1.0         # 38% off: out
     assert exit_checks(pos, 1.5, tight=True)[0] == 1.0          # risk-off: 25% trail
     assert exit_checks({"entry": 1.0, "peak": 1.2}, 0.8, tight=False) is None  # never ran up: stop-loss's job
+    assert next_checkpoint({"checkpoints": []}, 0.3) is None
+    assert next_checkpoint({"checkpoints": []}, 0.6) == 0.5
+    assert next_checkpoint({"checkpoints": [0.5]}, 1.3) == 1.0 and next_checkpoint({"checkpoints": [0.5, 1.0]}, 1.3) is None
 
 
 def test_desk_benches_traders_whose_copies_lose(desk):
@@ -332,14 +338,176 @@ def test_desk_benches_traders_whose_copies_lose(desk):
     assert desk.status()["council"]["vetoes_by_agent"]["Track Record"] == 1
 
 
-def test_market_shield_from_the_stock_side_halves_copies(tmp_path):
+def test_sol_falling_halves_copies(tmp_path):
     rpc, dex, clock = FakeRPC(), FakeDex(), Clock()
-    d = Desk(tmp_path, {"capital": 1000.0}, rpc=rpc, dex=dex, bitquery=lambda: NS(window=lambda s, t: []), clock=clock,
-             hype=lambda s, m: None, market_flags=lambda: ["S&P 500 below its 200-day average"])
-    d.state["followed"] = ["x", W]
+    dex.book[SOL_MINT] = Quote(SOL_MINT, "SOL", 200.0, 1e9, 0, None, -0.10)
+    d = Desk(tmp_path, {"capital": 1000.0}, rpc=rpc, dex=dex, bitquery=lambda: NS(window=lambda s, t: []), clock=clock)
+    d.state["followed"] = ["x", "y", "z", W]   # rank 4: no top-3 boost
     d.poll()
     rpc.sigs[W] = ["s1"]
     rpc.swaps_by_sig["s1"] = [Swap(W, "s1", int(clock.t), BONK, "buy", 1_000_000, SOL_MINT, 0.5)]
     dex.book[BONK] = Quote(BONK, "BONK", 0.0001, 200_000.0, 0)
     [event] = d.poll()
-    assert event["usd"] == pytest.approx(25.0) and d.status()["risk_off"] == ["S&P 500 below its 200-day average"]
+    assert event["usd"] == pytest.approx(20.0) and d.status()["risk_off"] == ["SOL down 10% in a day"]
+
+
+# ---------------------------------------------------------------------------
+# the full team: case files, Social Scout, Second Opinion, double-check, Exit Desk
+# ---------------------------------------------------------------------------
+
+class FakeScout:
+    ready = True
+
+    def __init__(self, report=None):
+        self.report_ = report or {"sentiment": 0.2, "pump_risk": 0.1, "buzz": 0.4, "red_flags": [], "green_flags": [],
+                                  "sources_checked": ["X", "news", "Reddit"], "summary": "Normal chatter."}
+        self.calls = []
+
+    def report(self, symbol, mint, purpose, max_age_s):
+        self.calls.append(purpose)
+        return dict(self.report_)
+
+
+class FakeReviewers:
+    def __init__(self, entry="approve", exit="hold"):
+        self.entry_, self.exit_, self.files = entry, exit, []
+
+    def entry(self, case_file):
+        self.files.append(case_file)
+        return {"decision": self.entry_, "confidence": 0.7, "reason": "looks fine" if self.entry_ == "approve" else "late chase"}
+
+    def exit(self, case_file):
+        self.files.append(case_file)
+        return {"decision": self.exit_, "confidence": 0.6, "reason": "momentum fading"}
+
+
+def _team_desk(tmp_path, scout=None, reviewers=None, **config):
+    rpc, dex, clock = FakeRPC(), FakeDex(), Clock()
+    d = Desk(tmp_path, {"capital": 1000.0, **config}, rpc=rpc, dex=dex, bitquery=lambda: NS(window=lambda s, t: []),
+             clock=clock, scout=scout, reviewers=reviewers)
+    d.state["followed"] = [W, W2]
+    d.poll()
+    d.rpc_, d.dex_, d.clock_ = rpc, dex, clock
+    return d
+
+
+def test_a_copy_goes_through_every_desk_in_order(tmp_path):
+    scout, reviewers = FakeScout(), FakeReviewers()
+    d = _team_desk(tmp_path, scout, reviewers)
+    d.dex_.book[BONK] = Quote(BONK, "BONK", 0.0001, 200_000.0, 0)
+    _trade(d, W, "s1", "buy", BONK, 1_000_000, 0.5)
+    [event] = d.poll()
+    [case] = d.state["cases"]
+    agents = [m["agent"] for m in case["messages"]]
+    assert agents[:2] == ["FOMO Link", "Front Desk"] and agents[-2:] == ["Front Desk", "Manager"]
+    assert agents.index("Social Scout") < agents.index("Second Opinion") < len(agents) - 2
+    assert case["status"] == "holding" and event["case"] == case["id"] and d.state["wire"][0]["outcome"] == "copied"
+    assert scout.calls == ["entry"] and reviewers.files[0]["social_scout"]["sources_checked"] == ["X", "news", "Reddit"]
+    assert d.state["ai_calls"]["count"] == 2
+    assert "Checked X, news, Reddit" in next(m["text"] for m in case["messages"] if m["agent"] == "Social Scout")
+
+
+def test_second_opinion_can_reject_and_the_double_check_can_cancel(tmp_path):
+    d = _team_desk(tmp_path, FakeScout(), FakeReviewers(entry="reject"))
+    d.dex_.book[BONK] = Quote(BONK, "BONK", 0.0001, 200_000.0, 0)
+    _trade(d, W, "s1", "buy", BONK, 1_000_000, 0.5)
+    assert d.poll() == [] and d.state["cases"][0]["status"] == "rejected" and not d.state["positions"]
+
+    d2 = _team_desk(tmp_path / "two", FakeScout(), FakeReviewers())
+    first = Quote(BONK, "BONK", 0.0001, 200_000.0, 0)
+    jumped = Quote(BONK, "BONK", 0.000108, 200_000.0, 0)
+    calls = []
+    d2.dex_.quotes = lambda mints: (calls.append(1), {SOL_MINT: d2.dex_.book[SOL_MINT], BONK: first} if len(calls) == 1 else {BONK: jumped})[1]
+    _trade(d2, W, "s1", "buy", BONK, 1_000_000, 0.5)
+    assert d2.poll() == [] and d2.state["cases"][0]["status"] == "cancelled"
+    assert "price jumped 8%" in d2.state["cases"][0]["messages"][-1]["text"]
+
+
+def test_ai_budget_caps_paid_checks(tmp_path):
+    d = _team_desk(tmp_path, FakeScout(), FakeReviewers(), ai_checks_per_day=1)
+    d.dex_.book[BONK] = Quote(BONK, "BONK", 0.0001, 200_000.0, 0)
+    _trade(d, W, "s1", "buy", BONK, 1_000_000, 0.5)
+    d.poll()
+    texts = " ".join(m["text"] for m in d.state["cases"][0]["messages"])
+    assert "budget is used up" in texts and d.state["positions"]  # the council's checks still stand
+
+
+def test_exit_desk_reviews_at_checkpoints_and_withdraws(tmp_path):
+    reviewers = FakeReviewers(exit="take_half")
+    d = _team_desk(tmp_path, FakeScout(), reviewers)
+    d.dex_.book[BONK] = Quote(BONK, "BONK", 0.0001, 200_000.0, 0)
+    _trade(d, W, "s1", "buy", BONK, 1_000_000, 0.5)
+    d.poll()
+    qty = d.state["positions"][BONK]["qty"]
+    d.dex_.book[BONK] = Quote(BONK, "BONK", 0.00016, 200_000.0, 0)   # +55%
+    [half] = d.poll()
+    assert half["share"] == 0.5 and d.state["positions"][BONK]["qty"] == pytest.approx(qty / 2)
+    assert reviewers.files[-1]["copied_traders_still_holding"] == {"Wa11…AAA1": True}
+    assert d.poll() == []                                                # same checkpoint: not asked again
+    reviewers.exit_ = "exit"
+    d.dex_.book[BONK] = Quote(BONK, "BONK", 0.00021, 200_000.0, 0)   # +100%
+    [out] = d.poll()
+    assert out["share"] == 1.0 and BONK not in d.state["positions"] and d.state["cases"][0]["status"] == "closed"
+    assert any(m["agent"] == "Exit Desk" for m in d.state["cases"][0]["messages"])
+
+
+def test_without_a_reviewer_the_rules_decide_and_sold_out_traders_mean_exit(tmp_path):
+    d = _team_desk(tmp_path)
+    d.dex_.book[BONK] = Quote(BONK, "BONK", 0.0001, 200_000.0, 0)
+    _trade(d, W, "s1", "buy", BONK, 1_000_000, 0.5)
+    d.poll()
+    d.dex_.book[BONK] = Quote(BONK, "BONK", 0.00016, 200_000.0, 0)   # +55%: rule says hold
+    assert d.poll() == []
+    d.state["holdings"][W][BONK] = 0.0                                 # they quietly sold elsewhere
+    d.dex_.book[BONK] = Quote(BONK, "BONK", 0.00021, 200_000.0, 0)
+    [out] = d.poll()
+    assert out["share"] == 1.0 and "sold out" in d.state["cases"][0]["messages"][-2]["text"]
+
+
+def test_followed_traders_sells_hit_the_wire(desk):
+    desk.dex_.book[WIF] = Quote(WIF, "WIF", 1.0, 500_000.0, 0)
+    _trade(desk, W2, "x1", "sell", WIF, 10, 0.05)
+    desk.poll()
+    assert desk.state["wire"][0]["side"] == "sell" and desk.state["wire"][0]["outcome"] == "we don't hold it"
+
+
+def test_social_scout_searches_x_and_the_web_and_caches(tmp_path, monkeypatch):
+    from hedge_fund.fomo.scout import SocialScout, describe
+    monkeypatch.delenv("XAI_API_KEY", raising=False)
+    assert SocialScout(tmp_path).report("BONK", BONK) is None and not SocialScout(tmp_path).ready
+    sent = []
+
+    class Http:
+        def post(self, url, timeout, headers, json):
+            sent.append(json)
+            body = '{"sentiment": 0.7, "pump_risk": 2, "buzz": 0.5, "red_flags": ["anon team"], "green_flags": [],' \
+                   ' "sources_checked": ["X", "news"], "summary": "Busy."}'
+            return Resp(200, {"output": [{"type": "message", "content": [{"type": "output_text", "text": body}]}]})
+    clock = Clock()
+    scout = SocialScout(tmp_path, key="xai-test", session=Http(), clock=clock)
+    report = scout.report("BONK", BONK, "entry")
+    assert [t["type"] for t in sent[0]["tools"]] == ["x_search", "web_search"] and "BONK" in sent[0]["input"][0]["content"]
+    assert report["pump_risk"] == 1.0 and report["red_flags"] == ["anon team"]   # clipped to 0..1
+    assert scout.report("BONK", BONK, "entry")["cached"] and len(sent) == 1
+    clock.t += 3 * 3600
+    scout.report("BONK", BONK, "entry")
+    assert len(sent) == 2
+    assert "Checked X, news" in describe(report) and "anon team" in describe(report)
+
+
+def test_reviewers_parse_strict_answers():
+    from hedge_fund.fomo.review import parse, Reviewers
+
+    class LLM:
+        model = "m"
+
+        def __init__(self, text):
+            self.text = text
+
+        def complete(self, system, user):
+            return self.text
+    r = Reviewers(lambda: LLM('{"decision": "Approve", "confidence": 3, "reason": "fine"}'))
+    assert r.entry({"x": 1}) == {"decision": "approve", "confidence": 1.0, "reason": "fine"}
+    assert Reviewers(lambda: LLM('```json\n{"decision":"take_half","reason":"r"}\n```')).exit({})["decision"] == "take_half"
+    with pytest.raises(ValueError):
+        parse('{"decision": "buy more"}', ("hold", "take_half", "exit"))

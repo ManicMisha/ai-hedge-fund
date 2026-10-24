@@ -36,6 +36,8 @@ from hedge_fund import alerts, intel
 from hedge_fund.briefing import latest_briefing, write_briefing
 from hedge_fund.autoplay import catch_up
 from hedge_fund.fomo import Desk, event_alert
+from hedge_fund.fomo.review import Reviewers
+from hedge_fund.fomo.scout import SocialScout
 from hedge_fund.fomo import leaderboard as fomo_board
 from hedge_fund.data.protocol import DataClient
 from hedge_fund.fund import Fund, FundSpec, load_spec, normalize_universe
@@ -215,7 +217,8 @@ class Dashboard:
         desk = self.fomo.status()
         with self.fomo._lock:
             events = list(self.fomo.desk().state["events"])
-        board = intel.board(list_deployed(self.paper_root), events, desk.get("risk_off"))
+            cases = list(self.fomo.desk().state["cases"])
+        board = intel.board(list_deployed(self.paper_root), events, desk.get("risk_off"), cases=cases)
         live = [f for f in funds if not f.get("error")]
         capital = sum(f["capital"] for f in live) + desk["capital"]
         value = sum(f["nav"] for f in live) + desk["nav"]
@@ -587,7 +590,12 @@ class FomoRunner:
     def desk(self) -> Desk:
         if self._desk is None:
             config = {k: v for k, v in self.app.settings()["fomo"].items() if k != "enabled"}
-            sources = {"market_flags": self.app.stock_flags, **self.sources}
+            from hedge_fund.llm import make_llm
+            # The FOMO team: Social Scout on Grok (X + web search), Second Opinion and
+            # Exit Desk on the model picked under Keys & model. SOL is the only market
+            # it watches; the stock side's S&P 500 has no say here.
+            sources = {"scout": SocialScout(self.root / "scout"),
+                       "reviewers": Reviewers(lambda: make_llm(timeout=90, max_tokens=500)), **self.sources}
             self._desk = Desk(self.root, config, **sources)
         return self._desk
 
@@ -642,7 +650,9 @@ class FomoRunner:
                     self.cycle()
                 except Exception:  # never let the timer die; errors show on the page
                     pass
-            self._wake.wait(self.interval)
+            # FOMO Link checks every 30 seconds on a private Solana address, every
+            # minute on the free public one (which rate-limits faster polling).
+            self._wake.wait(30.0 if os.environ.get("SOLANA_RPC_URL", "").strip() else self.interval)
 
     def cycle(self) -> list[dict]:
         with self._lock:

@@ -30,7 +30,11 @@ CRYPTO_AGENTS = {
     "Track Record": "Remembers whose trades made us money, benches the rest",
     "Market Shield": "Cuts risk when SOL or the S&P 500 turns down",
     "FOMO Meter": "Measures crowd euphoria on FOMO",
-    "Hype Watch": "Searches X for coordinated pumping",
+    "Social Scout": "Scrolls X, the web, news and Reddit for anything about the token",
+    "FOMO Link": "Wired to the top traders' wallets: reports every trade they make",
+    "Front Desk": "Opens a case for every trade, routes it, double-checks the price",
+    "Second Opinion": "An independent AI that must approve every buy",
+    "Exit Desk": "Decides hold or withdraw when a copy hits +50% and +100%",
 }
 _VERDICT = {"go": "bull", "boost": "bull", "veto": "veto", "caution": "caution", "info": "info"}
 # Safety checks: their "go" means "no objection", not "I like it".
@@ -73,6 +77,22 @@ def stock_notes(directory: Path) -> list[dict]:
     held = sorted(((t, w) for t, w in decision.final_weights.items() if abs(w) > 1e-6), key=lambda kv: -abs(kv[1]))
     notes.append({"t": when, "desk": desk, "agent": "Manager", "kind": "manager", "subject": None, "stance": "info", "strength": 0.0,
                   "text": "Plan: " + (", ".join(f"{t} {w:.0%}" for t, w in held[:6]) if held else "all cash") + "."})
+    return notes
+
+
+TEAM_DESK = {"FOMO Link", "Front Desk", "Social Scout", "Second Opinion", "Exit Desk"}
+
+
+def case_notes(cases: list[dict], limit: int = 40) -> list[dict]:
+    """The FOMO team's own messages from each case file, for the comms feed."""
+    stance = {"go": "bull", "boost": "bull", "veto": "veto", "caution": "caution", "info": "info"}
+    notes = []
+    for case in cases[:limit]:
+        for m in case["messages"]:
+            if m["agent"] in TEAM_DESK:
+                notes.append({"t": m["t"], "desk": "FOMO desk", "agent": m["agent"], "kind": "council", "subject": case["symbol"],
+                              "stance": stance.get(m["verdict"], "info"), "strength": 0.5, "text": m["text"],
+                              "to": m.get("to"), "case": case["id"]})
     return notes
 
 
@@ -144,8 +164,9 @@ def roster(notes: list[dict]) -> list[dict]:
     return sorted(out, key=lambda a: (a["kind"] != "manager", a["agent"]))
 
 
-def board(paper_dirs: list[Path], fomo_events: list[dict], risk_off: list[str] | None = None, limit: int = 150) -> dict:
-    notes: list[dict] = []
+def board(paper_dirs: list[Path], fomo_events: list[dict], risk_off: list[str] | None = None, limit: int = 150,
+          cases: list[dict] | None = None) -> dict:
+    notes: list[dict] = case_notes(cases or [])
     for directory in paper_dirs:
         try:
             notes += stock_notes(directory)
