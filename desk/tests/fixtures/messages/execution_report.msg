@@ -1,0 +1,14 @@
+MESSAGE_TYPE: EXECUTION_REPORT
+LABEL: ANALYSIS
+TICKET_ID: T-TEST-001
+STATUS: HOLD
+CHECKS: A PASS, B PASS, C PASS, D FAIL
+ORDERS:
+FILLS:
+SLIPPAGE_VS_TICKET:
+STOP_STATUS:
+EXIT_REASON:
+REALISED_RESULT:
+REASON: live price 1.31 is outside the entry zone 1.20 to 1.24
+DATA_AS_OF: 2026-11-23T13:20:00Z
+NOTE: Factual report of what was done. Not a recommendation, a guarantee or financial advice.

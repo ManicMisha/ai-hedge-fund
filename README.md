@@ -21,6 +21,18 @@ This project is for **educational and research purposes only**.
 
 By using this software, you agree to use it solely for learning purposes.
 
+## FOMO desk (paper trading, in progress)
+
+A five-agent desk that trades crowd-driven momentum on paper while protecting itself from late entries and oversized positions. The specification is [docs/team-design.md](docs/team-design.md). It cannot place a real order, and every figure it shows is simulated. Nothing it produces is financial advice.
+
+```bash
+poetry install
+poetry run python -m desk check   # which of the 32 settings are still empty
+poetry run python -m desk web     # the desk page at http://localhost:8787
+```
+
+All 32 settings in `config/desk.yaml` start empty, and the desk refuses to run until each one is filled in. Fill them in by editing that file; the page updates when you save. More of the desk (risk engine, paper account, agents, approvals, results) arrives stage by stage.
+
 ## How to Install
 
 ```bash
