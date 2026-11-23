@@ -1,0 +1,195 @@
+# The desk's 32 parameters. Every one is empty until you fill it in.
+#
+# Rules (from docs/team-design.md):
+# - Nothing is filled in for you, and no value has a default.
+# - While any value is empty or invalid, the desk refuses to render the
+#   agents' prompts or run a cycle, and names what is missing.
+# - Write numbers plainly: 5, not 5% or "5". Durations as a number and a
+#   unit: 30 minutes, 4 hours, 2 days.
+# - Limits change here, never in conversation.
+#
+# Check what is still missing with:  python -m desk check
+
+# ------------------------------------------------------------------------
+# What the desk trades
+# ------------------------------------------------------------------------
+
+# What the desk trades
+# Used by: all five agents.
+# Format: Words. Write it the way you want the agents to read it.
+ASSET_CLASS:
+
+# Exchange, broker or app where orders go
+# Used by: Desk Lead, Setup Analyst, Execution and Position Manager.
+# Format: Words. Write it the way you want the agents to read it.
+VENUE:
+
+# Which instruments are allowed, as a list or a filter
+# Used by: Desk Lead, Signal Scout.
+# Format: Words. Write it the way you want the agents to read it.
+INSTRUMENT_UNIVERSE:
+
+# Intended holding period and chart timeframe
+# Used by: Desk Lead, Signal Scout, Setup Analyst.
+# Format: Words. Write it the way you want the agents to read it.
+TIMEFRAME:
+
+# Long only, or long and short
+# Used by: Desk Lead, Setup Analyst.
+# Format: One of: LONG_ONLY, LONG_AND_SHORT.
+ALLOWED_DIRECTIONS:
+
+# When a trading day starts and ends, with timezone
+# Used by: Risk and Discipline Officer.
+# Format: Words. Write it the way you want the agents to read it.
+TRADING_DAY:
+
+# ------------------------------------------------------------------------
+# What the Scout watches
+# ------------------------------------------------------------------------
+
+# Platforms and feeds the Scout reads
+# Used by: Signal Scout.
+# Format: Words. Write it the way you want the agents to read it.
+SOCIAL_SOURCES:
+
+# Optional leaderboards or traders whose entries count as a signal. Write NONE if unused.
+# Used by: Signal Scout.
+# Format: Words. Write it the way you want the agents to read it.
+TRACKED_TRADER_SOURCES:
+
+# L7. How old a signal or assessment may be at entry
+# Used by: Signal Scout, Risk and Discipline Officer.
+# Format: A number and a unit of time: seconds, minutes, hours, days or weeks.
+MAX_SIGNAL_AGE:
+
+# ------------------------------------------------------------------------
+# Entry quality and costs
+# ------------------------------------------------------------------------
+
+# L10. Minimum liquidity an instrument needs
+# Used by: Setup Analyst, Risk and Discipline Officer.
+# Format: Words. Write it the way you want the agents to read it.
+MIN_LIQUIDITY:
+
+# L8. Minimum reward-to-risk after costs
+# Used by: Setup Analyst, Risk and Discipline Officer.
+# Format: A plain number.
+MIN_REWARD_RISK:
+
+# L9. Fees per trade, including any minimum fee
+# Used by: Setup Analyst, Risk and Discipline Officer, Execution and Position Manager.
+# Format: Words. Write it the way you want the agents to read it.
+FEE_MODEL:
+
+# L6. How far from the setup's reference level an entry may be, %
+# Used by: Setup Analyst, Risk and Discipline Officer.
+# Format: A plain number, read as a percentage. Leave out the % sign.
+MAX_CHASE_PCT:
+
+# L9. Largest round-trip fees plus slippage, % of position
+# Used by: Risk and Discipline Officer.
+# Format: A plain number, read as a percentage. Leave out the % sign.
+MAX_COST_PCT:
+
+# Worst acceptable fill against the ticket price, %
+# Used by: Execution and Position Manager.
+# Format: A plain number, read as a percentage. Leave out the % sign.
+MAX_SLIPPAGE_PCT:
+
+# ------------------------------------------------------------------------
+# Position size limits
+# ------------------------------------------------------------------------
+
+# A live account tool, or a figure you keep updated
+# Used by: Risk and Discipline Officer.
+# Format: Words. Write it the way you want the agents to read it.
+ACCOUNT_EQUITY:
+
+# L1. Largest single position, % of equity
+# Used by: Risk and Discipline Officer.
+# Format: A plain number, read as a percentage. Leave out the % sign.
+MAX_POSITION_PCT:
+
+# L2. Largest loss if a stop is hit, % of equity
+# Used by: Risk and Discipline Officer.
+# Format: A plain number, read as a percentage. Leave out the % sign.
+MAX_RISK_PER_TRADE_PCT:
+
+# L3. Largest combined open exposure, % of equity
+# Used by: Risk and Discipline Officer.
+# Format: A plain number, read as a percentage. Leave out the % sign.
+MAX_TOTAL_EXPOSURE_PCT:
+
+# L4. Most positions open at once
+# Used by: Risk and Discipline Officer.
+# Format: A whole number.
+MAX_OPEN_POSITIONS:
+
+# L5. Highest leverage allowed. 1 means none.
+# Used by: Risk and Discipline Officer.
+# Format: A plain number.
+MAX_LEVERAGE:
+
+# ------------------------------------------------------------------------
+# Loss limits and pace
+# ------------------------------------------------------------------------
+
+# L11. Loss in one trading day that stops new entries, % of equity
+# Used by: Risk and Discipline Officer.
+# Format: A plain number, read as a percentage. Leave out the % sign.
+MAX_DAILY_LOSS_PCT:
+
+# L12. Fall from peak equity that halts the desk, %
+# Used by: Risk and Discipline Officer.
+# Format: A plain number, read as a percentage. Leave out the % sign.
+MAX_DRAWDOWN_PCT:
+
+# L13. Most entries per trading day
+# Used by: Risk and Discipline Officer.
+# Format: A whole number.
+MAX_TRADES_PER_DAY:
+
+# L14. Wait after a losing exit before any new entry
+# Used by: Risk and Discipline Officer.
+# Format: A number and a unit of time: seconds, minutes, hours, days or weeks.
+COOLDOWN_AFTER_LOSS:
+
+# L15. Wait before returning to an instrument the desk exited, missed or passed on
+# Used by: Risk and Discipline Officer.
+# Format: A number and a unit of time: seconds, minutes, hours, days or weeks.
+REENTRY_COOLDOWN:
+
+# Delay before an edited limit takes effect
+# Used by: Risk and Discipline Officer.
+# Format: A number and a unit of time: seconds, minutes, hours, days or weeks.
+LIMIT_CHANGE_COOLDOWN:
+
+# ------------------------------------------------------------------------
+# Approvals and updates
+# ------------------------------------------------------------------------
+
+# MANUAL means you approve every ticket. Any other behaviour is yours to define here.
+# Used by: Desk Lead, Execution and Position Manager.
+# Format: Words. Write it the way you want the agents to read it.
+APPROVAL_MODE:
+
+# PRE_AUTHORISED lets Risk-ordered reductions execute at once. ASK_OWNER sends them to you first.
+# Used by: Risk and Discipline Officer, Execution and Position Manager.
+# Format: One of: PRE_AUTHORISED, ASK_OWNER.
+RISK_EXIT_MODE:
+
+# How long an approved ticket stays valid
+# Used by: Desk Lead, Execution and Position Manager.
+# Format: A number and a unit of time: seconds, minutes, hours, days or weeks.
+TICKET_EXPIRY:
+
+# Where agents reach you for approvals and alerts
+# Used by: Desk Lead, Risk and Discipline Officer, Execution and Position Manager.
+# Format: Words. Write it the way you want the agents to read it.
+OWNER_CHANNEL:
+
+# How often you get a desk summary and position updates
+# Used by: Desk Lead, Execution and Position Manager.
+# Format: Words. Write it the way you want the agents to read it.
+SUMMARY_CADENCE:
