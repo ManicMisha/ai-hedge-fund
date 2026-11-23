@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FOMO Desk</title>
+<style>
+@font-face {
+  font-family: "Pixelify Sans";
+  src: url("/static/fonts/PixelifySans-latin.woff2") format("woff2");
+  font-weight: 400 700;
+  font-display: swap;
+}
+:root {
+  color-scheme: dark;
+  --void: #0f0c1d;
+  --panel: #1a1530;
+  --panel-2: #241d42;
+  --edge: #3b3066;
+  --ink: #f6f2ff;
+  --muted: #c2bae3;
+  --faint: #8f86b8;
+  --gold: #ffc93c;
+  --gold-deep: #c78f00;
+  --ok: #52e39a;
+  --bad: #ff6b85;
+  --info: #6fd0ff;
+  --display: "Pixelify Sans", "Courier New", monospace;
+  --body: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, monospace;
+  --px: 4px;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--void); color: var(--ink);
+  font: 17px/1.55 var(--body);
+  background-image:
+    radial-gradient(circle at 15% -10%, rgba(111, 208, 255, .08), transparent 40%),
+    radial-gradient(circle at 90% 0%, rgba(255, 201, 60, .07), transparent 35%);
+  background-attachment: fixed;
+}
+.wrap { max-width: 1120px; margin: 0 auto; padding: 20px 16px 64px; }
+h1, h2, h3, .disp { font-family: var(--display); font-weight: 600; letter-spacing: .02em; margin: 0; }
+h2 { font-size: 26px; margin-bottom: 6px; }
+h3 { font-size: 20px; }
+p { margin: 0; }
+code, .mono { font-family: var(--mono); font-size: .92em; }
+.muted { color: var(--muted); }
+.faint { color: var(--faint); }
+section { margin-top: 36px; }
+.lead { color: var(--muted); margin-bottom: 16px; max-width: 70ch; }
+
+/* pixel frame */
+.frame {
+  background: var(--panel); border: var(--px) solid var(--edge); padding: 20px;
+  clip-path: polygon(var(--px) 0, calc(100% - var(--px)) 0, calc(100% - var(--px)) var(--px), 100% var(--px),
+    100% calc(100% - var(--px)), calc(100% - var(--px)) calc(100% - var(--px)), calc(100% - var(--px)) 100%,
+    var(--px) 100%, var(--px) calc(100% - var(--px)), 0 calc(100% - var(--px)), 0 var(--px), var(--px) var(--px));
+  min-width: 0;
+}
+.pill {
+  display: inline-block; font-family: var(--display); font-size: 14px; letter-spacing: .08em;
+  text-transform: uppercase; padding: 2px 10px; border: 2px solid currentColor; white-space: nowrap;
+}
+.pill.ok { color: var(--ok); } .pill.bad { color: var(--bad); } .pill.gold { color: var(--gold); } .pill.info { color: var(--info); }
+.pill.empty { color: var(--faint); }
+
+/* top bar */
+.topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px 20px; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 14px; }
+.brand svg { width: 44px; height: 44px; flex: none; }
+.brand h1 { font-size: 32px; line-height: 1; }
+.brand h1 span { color: var(--gold); }
+.brand .sub { color: var(--muted); font-size: 15px; margin-top: 4px; }
+.badges { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* status hero */
+.hero { margin-top: 24px; display: grid; grid-template-columns: 1fr auto; gap: 18px 28px; align-items: center; border-color: var(--gold-deep); }
+.hero .big { font-family: var(--display); font-size: 44px; line-height: 1; }
+.hero .big small { font-size: 22px; color: var(--muted); }
+.hero h2 { font-size: 28px; }
+.hero .next { margin-top: 10px; font-size: 18px; }
+.bar { height: 18px; background: #0c0918; border: 3px solid var(--edge); position: relative; overflow: hidden; margin-top: 14px; }
+.bar > i { position: absolute; inset: 0 auto 0 0; background: var(--gold);
+  background-image: repeating-linear-gradient(90deg, transparent 0 12px, rgba(0,0,0,.25) 12px 14px); transition: width .4s; }
+.hero .side { text-align: right; }
+
+/* agents */
+.agents { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
+.agent { display: grid; gap: 8px; align-content: start; }
+.agent .who { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.agent .job { color: var(--muted); font-size: 16px; }
+.agent .access { font-size: 15px; color: var(--faint); border-top: 2px solid var(--edge); padding-top: 8px; }
+.agent.exec { border-color: #5a3d8c; }
+
+/* flow */
+.flow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; align-items: stretch; }
+.step { padding: 14px; background: var(--panel-2); border: 3px solid var(--edge); position: relative; }
+.step + .step { border-left: 0; }
+.step .n { font-family: var(--display); color: var(--gold); font-size: 15px; letter-spacing: .1em; text-transform: uppercase; }
+.step h3 { font-size: 19px; margin: 2px 0 6px; }
+.step p { font-size: 15px; color: var(--muted); }
+.step .stop { margin-top: 8px; font-size: 14px; color: var(--bad); }
+.step.you { background: #2c2410; border-color: var(--gold-deep); }
+.flow-note { margin-top: 12px; color: var(--muted); font-size: 16px; }
+
+/* settings */
+.toolbar { display: flex; gap: 10px 16px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+.toggle { display: inline-flex; gap: 8px; align-items: center; cursor: pointer; font-size: 16px; }
+.toggle input { width: 20px; height: 20px; accent-color: var(--gold); }
+.group { margin-bottom: 18px; }
+.group > header { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+.group > header .count { color: var(--muted); font-size: 15px; }
+.rows { display: grid; gap: 10px; }
+.row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 14px; padding: 12px 14px; background: var(--panel-2); border-left: 6px solid var(--edge); }
+.row.filled { border-left-color: var(--ok); }
+.row.invalid { border-left-color: var(--bad); }
+.row.empty { border-left-color: var(--gold-deep); }
+.row .name { font-family: var(--mono); font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
+.row .lim { font-family: var(--display); color: var(--info); margin-right: 6px; }
+.row .sets { color: var(--ink); }
+.row .meta { grid-column: 1 / -1; font-size: 15px; color: var(--faint); }
+.row .val { grid-column: 1 / -1; font-family: var(--mono); font-size: 15px; color: var(--ok); overflow-wrap: anywhere; }
+.row .problem { grid-column: 1 / -1; color: var(--bad); font-size: 16px; }
+.row .status { align-self: start; }
+
+/* coming next */
+.locked { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+.locked .frame { opacity: .85; }
+.locked h3 { margin-bottom: 6px; }
+.stages { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.stages li { display: flex; gap: 10px; align-items: baseline; }
+.stages .mark { font-family: var(--display); width: 2.2em; flex: none; color: var(--faint); }
+.stages li.done .mark { color: var(--ok); }
+
+.error { border-color: var(--bad); }
+footer { margin-top: 48px; padding-top: 16px; border-top: 2px solid var(--edge); color: var(--muted); font-size: 15px; }
+:focus-visible { outline: 3px solid var(--info); outline-offset: 3px; }
+
+@media (max-width: 760px) {
+  body { font-size: 17px; }
+  .hero { grid-template-columns: 1fr; }
+  .hero .side { text-align: left; }
+  .flow { grid-template-columns: 1fr; }
+  .step + .step { border-left: 3px solid var(--edge); border-top: 0; }
+  .brand h1 { font-size: 28px; }
+}
+@media (prefers-reduced-motion: reduce) { .bar > i { transition: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar">
+    <div class="brand">
+      <svg viewBox="0 0 11 11" shape-rendering="crispEdges" aria-hidden="true">
+        <rect x="1" y="7" width="2" height="3" fill="#6fd0ff"/><rect x="4" y="4" width="2" height="6" fill="#ffc93c"/>
+        <rect x="7" y="1" width="2" height="9" fill="#52e39a"/><rect x="0" y="10" width="11" height="1" fill="#3b3066"/>
+      </svg>
+      <div>
+        <h1>FOMO <span>DESK</span></h1>
+        <p class="sub">Five agents. One veto. You approve every trade.</p>
+      </div>
+    </div>
+    <div class="badges">
+      <span class="pill gold">Paper trading</span>
+      <span class="pill info">Simulated money only</span>
+    </div>
+  </header>
+
+  <main id="app" aria-live="polite">
+    <div class="frame hero"><p>Loading the desk…</p></div>
+  </main>
+
+  <footer>
+    Paper trading only: there is no way to place a real order from this desk. Every figure it shows is simulated.
+    Agent output is labelled ANALYSIS or PROPOSED ACTION. Nothing here is a guarantee or financial advice.
+  </footer>
+</div>
+
+<script>
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let onlyMissing = false;
+try { onlyMissing = localStorage.getItem("desk.onlyMissing") === "1"; } catch (e) {}
+let last = null;
+
+const FLOW = [
+  ["Start", "Signal Scout", "Spots crowd activity and rates how far along the crowd is.", "Coordinated pump: the Lead drops it"],
+  ["Gate 1", "Setup Analyst", "Sets the entry zone, stop, targets and time stop from market data.", "No setup: no ticket"],
+  ["Gate 2", "Risk Officer", "Checks every limit in code. Sets the maximum size.", "Veto is final"],
+  ["Gate 3", "You", "Approve or decline each ticket. Silence is not approval.", "Declined or expired: logged"],
+  ["Gate 4", "Execution", "Re-checks live price at the moment of the paper fill.", "Price left the zone: missed"],
+];
+
+function statusPill(s) {
+  if (s === "filled") return '<span class="pill ok status">Filled</span>';
+  if (s === "invalid") return '<span class="pill bad status">Fix this</span>';
+  return '<span class="pill empty status">Empty</span>';
+}
+
+function render(st) {
+  const app = document.getElementById("app");
+  if (!st.ok) {
+    app.innerHTML = `<div class="frame hero error"><div><h2>The settings file cannot be read</h2>
+      <p class="next">${esc(st.error)}</p></div></div>`;
+    return;
+  }
+  const pct = Math.round(100 * st.filled / st.total);
+  const left = st.total - st.filled;
+  const firstGap = st.params.find(p => p.status !== "filled");
+  const ready = left === 0;
+  const hero = `
+    <div class="frame hero">
+      <div>
+        <h2>${ready ? "Settings complete" : "The desk is locked until every setting is filled in"}</h2>
+        <p class="next">${ready
+          ? "All 32 values are filled in and valid. The agents and the risk engine arrive in later stages."
+          : `Next: open <code>${esc(st.config_path)}</code> and fill in <code>${esc(firstGap.name)}</code>${firstGap.status === "invalid" ? " (it needs fixing)" : ""}. This page updates by itself when you save.`}</p>
+        <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="${st.total}" aria-valuenow="${st.filled}" aria-label="Settings filled in"><i style="width:${pct}%"></i></div>
+      </div>
+      <div class="side">
+        <div class="big">${st.filled}<small> / ${st.total}</small></div>
+        <p class="muted">settings filled in${st.invalid ? `, <span style="color:var(--bad)">${st.invalid} to fix</span>` : ""}</p>
+      </div>
+    </div>`;
+
+  const agents = st.agents.map(a => `
+    <article class="frame agent ${a.order_tools ? "exec" : ""}">
+      <div class="who"><h3>${esc(a.name)}</h3></div>
+      <div>${a.waiting.length ? `<span class="pill empty">Waiting on ${a.waiting.length} of ${a.needs}</span>` : '<span class="pill ok">Ready</span>'}</div>
+      <p class="job">${esc(a.job)}.</p>
+      <p class="access">${a.order_tools ? "Only agent that can reach the broker, and here that broker is paper only." : "Read-only. Cannot place, change or cancel an order."}</p>
+    </article>`).join("");
+
+  const flow = FLOW.map((f, i) => `
+    <div class="step ${i === 3 ? "you" : ""}">
+      <div class="n">${esc(f[0])}</div><h3>${esc(f[1])}</h3><p>${esc(f[2])}</p><p class="stop">${esc(f[3])}</p>
+    </div>`).join("");
+
+  const groups = st.groups.map(g => {
+    const rows = st.params.filter(p => p.group === g);
+    const done = rows.filter(p => p.status === "filled").length;
+    const shown = onlyMissing ? rows.filter(p => p.status !== "filled") : rows;
+    if (!shown.length) return "";
+    return `<div class="group frame">
+      <header><h3>${esc(g)}</h3><span class="count">${done} of ${rows.length} filled</span></header>
+      <div class="rows">${shown.map(p => `
+        <div class="row ${p.status}">
+          <div><span class="name">${p.limit ? `<span class="lim">${esc(p.limit)}</span>` : ""}${esc(p.name)}</span>
+            <div class="sets">${esc(p.sets)}</div></div>
+          ${statusPill(p.status)}
+          ${p.value ? `<div class="val">${esc(p.value)}</div>` : ""}
+          ${p.problem ? `<div class="problem">${esc(p.problem)}</div>` : ""}
+          <div class="meta">${esc(p.format)} Used by: ${esc(p.used_by.join(", "))}.</div>
+        </div>`).join("")}</div>
+    </div>`;
+  }).join("") || '<div class="frame"><p>Nothing missing. Every setting is filled in.</p></div>';
+
+  const stages = st.stages.map(s => `<li class="${s.done ? "done" : ""}"><span class="mark">${s.done ? "✓" : s.n}</span><span>${esc(s.name)}</span></li>`).join("");
+
+  app.innerHTML = `${hero}
+    <section aria-labelledby="h-agents"><h2 id="h-agents">The five agents</h2>
+      <p class="lead">Each agent has one job. The one that reads the hype never sizes or places a trade, and the one that places orders cannot choose them.</p>
+      <div class="agents">${agents}</div></section>
+    <section aria-labelledby="h-flow"><h2 id="h-flow">How a trade gets through</h2>
+      <p class="lead">Every gate can only stop a trade or shrink it. None can enlarge it or speed it up.</p>
+      <div class="flow">${flow}</div>
+      <p class="flow-note">A missed trade is logged and left alone. "No trade" is a normal result.</p></section>
+    <section aria-labelledby="h-settings"><h2 id="h-settings">Settings</h2>
+      <p class="lead">These 32 values live in <code>${esc(st.config_path)}</code>. Nothing is filled in for you, and none has a default. Limits change in that file, never in conversation.</p>
+      <div class="toolbar"><label class="toggle"><input type="checkbox" id="only" ${onlyMissing ? "checked" : ""}> Show only what still needs filling in</label></div>
+      ${groups}</section>
+    <section aria-labelledby="h-next"><h2 id="h-next">Coming next</h2>
+      <div class="locked">
+        <div class="frame"><h3>Paper account</h3><p class="muted">Simulated balance, the weekly $100 deposit and open positions. Arrives in stage 4.</p></div>
+        <div class="frame"><h3>Tickets for you</h3><p class="muted">Risk-approved tickets waiting for your yes or no, each with its expiry. Arrives in stage 7.</p></div>
+        <div class="frame"><h3>Results</h3><p class="muted">Trades, win rate, fees and drawdown, all labelled simulated. Arrives in stage 8.</p></div>
+        <div class="frame"><h3>Build stages</h3><ol class="stages">${stages}</ol></div>
+      </div></section>`;
+
+  document.getElementById("only").addEventListener("change", e => {
+    onlyMissing = e.target.checked;
+    try { localStorage.setItem("desk.onlyMissing", onlyMissing ? "1" : "0"); } catch (err) {}
+    render(last);
+  });
+}
+
+async function refresh() {
+  try {
+    const r = await fetch("/api/state", { cache: "no-store" });
+    const st = await r.json();
+    const key = JSON.stringify(st);
+    if (key !== JSON.stringify(last)) { last = st; render(st); }
+  } catch (e) {
+    document.getElementById("app").innerHTML = '<div class="frame hero error"><div><h2>The desk server is not running</h2><p class="next">Start it again with <code>python -m desk web</code>.</p></div></div>';
+    last = null;
+  }
+}
+refresh();
+setInterval(refresh, 4000);
+</script>
+</body>
+</html>

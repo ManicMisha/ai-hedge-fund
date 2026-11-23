@@ -1,4 +1,4 @@
-.PHONY: dev console test
+.PHONY: dev console test desk-test desk-web
 
 # The app under Textual's dev tools: app.tcss reloads live, print/log go to
 # `make console`, and any change under hedge_fund/ restarts the app.
@@ -14,3 +14,10 @@ console:
 
 test:
 	poetry run pytest hedge_fund/
+
+# The FOMO desk (paper trading only)
+desk-test:
+	poetry run pytest desk/ -q
+
+desk-web:
+	poetry run python -m desk web

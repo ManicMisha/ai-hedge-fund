@@ -61,3 +61,8 @@ outputs/
 
 # Local-only release tooling
 scripts/release.sh
+
+# FOMO desk: local state and secrets never go in git
+.env.*
+!.env.example
+/desk-data/
